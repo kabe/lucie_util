@@ -1,0 +1,90 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+
+# config
+my $ldb_repos = q|/home/kabe/git/L4|;
+my $cluster_select_sql = q|select name, mgmt_mac from host where name>="sheep00" and name<="sheep99"|;
+my @exclude_list = qw(sheep02 sheep04 sheep05 sheep07 sheep23 sheep34 sheep37 sheep46 sheep47);
+my $line_tmpl = q|NODENAME --mac MAC|;
+my $glbl_tmpl = <<'END';
+#/bin/sh
+
+./node install-multi \
+LINE_TMPLS
+--storage-conf ~/lucie/config/storage.conf \
+--netmask 255.255.0.0 \
+--source-control Subversion \
+--ldb-repository svn+ssh://intri@www.intrigger.jp/home/intri/SVN/L4 \
+--verbose \
+--secret env.enc
+END
+
+# Util
+sub get_name_and_mac_addr {
+  my $line = shift;
+  chomp $line;
+  my ($name, $mgmt_mac) = split(/\|/, $line);
+  $mgmt_mac = undef if $mgmt_mac eq "";
+  return ($name, $mgmt_mac);
+}
+
+sub sql_cmd {
+  my $repos = $ldb_repos;
+  my $suf = q|bin/ldb sql|;
+  $cluster_select_sql =~ s/'/\\'/;
+  my $cmd = qq|$repos/$suf '$cluster_select_sql'|;
+}
+
+sub node_lines {
+  my $aref = shift;
+  my $str = "";
+  for my $line (@$aref) {
+    $str .= $line;
+  }
+  return $str;
+}
+
+sub main() {
+  my @node_lines = ();
+  my @mac_unknown = ();
+  my @excluded = ();
+  my $handle = undef;
+  open $handle, sql_cmd() . " | " or die "Can't open L4 pipe";
+  for my $line (<$handle>) {
+    my $tmp_tmpl = $line_tmpl;
+    my ($name, $mgmt_mac) = get_name_and_mac_addr($line);
+    if (grep /$name/, @exclude_list) {
+      push @excluded, $name;
+      next;
+    }
+    if (!defined $mgmt_mac) {
+      push @mac_unknown, $name;
+      next;
+    }
+    $tmp_tmpl =~ s/NODENAME/$name/;
+    $tmp_tmpl =~ s/MAC/$mgmt_mac/;
+    $tmp_tmpl = qq|"$tmp_tmpl" \\\n|;
+    push @node_lines, $tmp_tmpl;
+  }
+  close $handle;
+
+  my $nl = node_lines(\@node_lines);
+  chomp $nl;
+  $glbl_tmpl =~ s/LINE_TMPLS/$nl/;
+  print $glbl_tmpl;
+
+  if (@excluded != 0) {
+    print qq|# Excluded List:\n|;
+    print qq|# @excluded\n|;
+  }
+  if (@mac_unknown != 0) {
+    print qq|# Unknown List:\n|;
+    print qq|# @mac_unknown\n|;
+  }
+
+}
+
+main();
+
