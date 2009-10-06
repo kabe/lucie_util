@@ -11,7 +11,7 @@ my $ldb_repos = q|/home/kabe/git/L4|;
 my $secret_file = q|~/lucie/env.enc|;
 my $cluster_select_sql = q|select name, mgmt_mac, mgmt_netmask, storage_conf_type from host where name>="sheep00" and name<="sheep99"|;
 my @exclude_list = qw(sheep02 sheep04 sheep07 sheep23 sheep34 sheep37 sheep46 sheep47);
-my $line_tmpl = q|NODENAME --mac MAC|;
+my $line_tmpl = q|NODENAME --mac MAC --storage-conf STORAGE_CONF|;
 my $remote_ldb_repository_type = q|Subversion|;
 my $remote_ldb_repository = q|svn+ssh://intri@www.intrigger.jp/home/intri/SVN/L4|;
 my $glbl_tmpl = <<'END';
@@ -19,7 +19,6 @@ my $glbl_tmpl = <<'END';
 
 ./node install-multi \
 LINE_TMPLS
---storage-conf STORAGE_CONF \
 --netmask INSTALL_NETWORK \
 --source-control REMOTE_LDB_REPOSITORY_TYPE \
 --ldb-repository REMOTE_LDB_REPOSITORY_LOCATION \
@@ -61,22 +60,16 @@ sub node_lines {
   return $str;
 }
 
-# Check storage.conf's existence and argv's consistency.
+# Check storage.conf's existence
 # Return "OK" if everything is OK
 sub check_storage {
-  my $cref = shift; # Reference to the list of the names of storage.conf
-  my @s = sort @$cref;
-  if (!defined $s[0]) {
-    return q|Storage configuration file for some node(s) undefined!|;
-  }
-  if ($s[0] ne $s[$#s]) {
-    return q|Some of the names of storage configuration file differs!|;
-  }
+  my $storage_type = shift; # Reference to the list of the names of storage.conf
   # File existence
-  if (! -f qq|$storage_dir/$s[0]|) {
-    return qq|Storage configuration file ($storage_dir/$s[0]) not exists!|;
+  my $storage_conf_file_path = $storage_dir . '/' . $storage_type;
+  if (! -f qq|$storage_conf_file_path|) {
+    return qq|Storage configuration file ($storage_conf_file_path) not exists!|;
   }
-  return (q|OK|, $storage_dir . '/' . $s[0]);
+  return (q|OK|, $storage_conf_file_path);
 }
 
 sub check_network {
@@ -95,7 +88,6 @@ sub main() {
   my @node_lines = ();
   my @mac_unknown = ();
   my @excluded = ();
-  my @storage_list = ();
   my @install_network_list = ();
   my $handle = undef;
   open $handle, sql_cmd() . " | " or die "Can't open L4 pipe";
@@ -110,21 +102,21 @@ sub main() {
       push @mac_unknown, $name;
       next;
     }
-    push @storage_list, $storage_type;
     push @install_network_list, $inst_network;
+    # Check storage configuration file
+    my ($storage_conf_result, $storage_conf_path) = check_storage($storage_type);
+    if ($storage_conf_result ne q|OK|) {
+      print STDERR q|!!! ERROR !!! |, $storage_conf_result, $/;
+      return 0;
+    }
     $tmp_tmpl =~ s/NODENAME/$name/;
     $tmp_tmpl =~ s/MAC/$inst_mac/;
+    $tmp_tmpl =~ s/STORAGE_CONF/$storage_conf_path/;
     $tmp_tmpl = qq|"$tmp_tmpl" \\\n|;
     push @node_lines, $tmp_tmpl;
   }
   close $handle;
 
-  # Check storage.conf's existence
-  my ($storage_conf_result, $storage_conf_file_name) = check_storage(\@storage_list);
-  if ($storage_conf_result ne q|OK|) {
-    print STDERR q|!!! ERROR !!! |, $storage_conf_result, $/;
-    return 0;
-  }
   # Check install network
   my ($install_network_result, $install_network) = check_network(\@install_network_list);
   if ($install_network_result ne q|OK|) {
@@ -141,7 +133,6 @@ sub main() {
   my $nl = node_lines(\@node_lines);
   chomp $nl;
   $glbl_tmpl =~ s/LINE_TMPLS/$nl/;
-  $glbl_tmpl =~ s/STORAGE_CONF/$storage_conf_file_name/;
   $glbl_tmpl =~ s/INSTALL_NETWORK/$install_network/;
   $glbl_tmpl =~ s/REMOTE_LDB_REPOSITORY_TYPE/$remote_ldb_repository_type/;
   $glbl_tmpl =~ s/REMOTE_LDB_REPOSITORY_LOCATION/$remote_ldb_repository/;
