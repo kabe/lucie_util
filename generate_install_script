@@ -29,7 +29,7 @@ my $glbl_tmpl = <<'END';
 
 ./node install-multi \
 LINE_TMPLS
---netmask INSTALL_NETWORK \
+--netmask INSTALL_NETMASK \
 --source-control REMOTE_LDB_REPOSITORY_TYPE \
 --ldb-repository REMOTE_LDB_REPOSITORY_LOCATION \
 --verbose \
@@ -65,12 +65,12 @@ if ($DEBUG) {
 sub get_nodeinfo {
   my $line = shift;
   chomp $line;
-  my ($name, $inst_mac, $inst_network, $storage_type, $arch) = split(/\|/, $line);
+  my ($name, $inst_mac, $inst_netmask, $storage_type, $arch) = split(/\|/, $line);
   $inst_mac = undef if $inst_mac eq "";
-  $inst_network = undef if $inst_network eq "";
+  $inst_netmask = undef if $inst_netmask eq "";
   $storage_type = undef if $storage_type eq "";
   $arch = undef if $arch eq "";
-  return ($name, $inst_mac, $inst_network, $storage_type, $arch);
+  return ($name, $inst_mac, $inst_netmask, $storage_type, $arch);
 }
 
 sub sql_cmd {
@@ -107,14 +107,14 @@ sub check_storage {
   return (q|OK|, $storage_conf_file_path);
 }
 
-sub check_network {
+sub check_netmask {
   my $nref = shift;
   my @s = sort @$nref;
   if (!defined $s[0]) {
-    return q|Install Network for some node(s) undefined!|;
+    return q|Install Netmask for some node(s) undefined!|;
   }
   if ($s[0] ne $s[$#s]) {
-    return q|Some of the install network configuration differs!|;
+    return q|Some of the install netmask configuration differs!|;
   }
   return (q|OK|, $s[0]);
 }
@@ -158,14 +158,14 @@ sub main {
   my @node_lines = ();
   my @mac_unknown = ();
   my @excluded = ();
-  my @install_network_list = ();
+  my @install_netmask_list = ();
   my @archs = ();
   my $handle = undef;
   # Create SQL Command
   open $handle, sql_cmd($hash) . " | " or die "Can't open L4 pipe";
   for my $line (<$handle>) {
     my $tmp_tmpl = $line_tmpl;
-    my ($name, $inst_mac, $inst_network, $storage_type, $arch) = get_nodeinfo($line);
+    my ($name, $inst_mac, $inst_netmask, $storage_type, $arch) = get_nodeinfo($line);
     if (grep /$name/, @{$hash->{EXCLUDE_LIST}}) {
       push @excluded, $name;
       next;
@@ -174,7 +174,7 @@ sub main {
       push @mac_unknown, $name;
       next;
     }
-    push @install_network_list, $inst_network;
+    push @install_netmask_list, $inst_netmask;
     # Check storage configuration file
     my ($storage_conf_result, $storage_conf_path) = check_storage($storage_type);
     if ($storage_conf_result ne q|OK|) {
@@ -192,10 +192,10 @@ sub main {
   }
   close $handle;
 
-  # Check install network
-  my ($install_network_result, $install_network) = check_network(\@install_network_list);
-  if ($install_network_result ne q|OK|) {
-    print STDERR q|!!! ERROR !!! |, $install_network_result, $/;
+  # Check install netmask
+  my ($install_netmask_result, $install_netmask) = check_netmask(\@install_netmask_list);
+  if ($install_netmask_result ne q|OK|) {
+    print STDERR q|!!! ERROR !!! |, $install_netmask_result, $/;
     return 0;
   }
   # Check secret file
@@ -220,7 +220,7 @@ sub main {
   my $nl = node_lines(\@node_lines);
   chomp $nl;
   $glbl_tmpl =~ s/LINE_TMPLS/$nl/;
-  $glbl_tmpl =~ s/INSTALL_NETWORK/$install_network/;
+  $glbl_tmpl =~ s/INSTALL_NETMASK/$install_netmask/;
   $glbl_tmpl =~ s/REMOTE_LDB_REPOSITORY_TYPE/$remote_ldb_repository_type/;
   $glbl_tmpl =~ s/REMOTE_LDB_REPOSITORY_LOCATION/$remote_ldb_repository/;
   $glbl_tmpl =~ s/SECRET_FILE/$secret_file/;
