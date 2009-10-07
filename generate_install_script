@@ -2,18 +2,28 @@
 
 use strict;
 use warnings;
+use Getopt::Long;
+use Data::Dumper;
 
 # Debug ?
 my $DEBUG = 1;
 
-# config
+###################################################################
+#################### CONFIGURATION BEGINS HERE ####################
+###################################################################
+
 my $ldb_repos = q|/home/kabe/git/L4|;
 my $secret_file = q|~/lucie/env.enc|;
-my $cluster_select_sql = q|select name, mgmt_mac, mgmt_netmask, storage_conf_type from host where name>="sheep00" and name<="sheep99"|;
-my @exclude_list = qw(sheep02 sheep04 sheep07 sheep23 sheep34 sheep37 sheep46 sheep47);
-my $line_tmpl = q|NODENAME --mac MAC --storage-conf STORAGE_CONF|;
 my $remote_ldb_repository_type = q|Subversion|;
 my $remote_ldb_repository = q|svn+ssh://intri@www.intrigger.jp/home/intri/SVN/L4|;
+
+###################################################################
+##################### CONFIGURATION ENDS HERE #####################
+###################################################################
+
+# Templates
+my $cluster_select_sql = q|select name, mgmt_mac, mgmt_netmask, storage_conf_type from host where name>="START_NODE" and name<="END_NODE"|;
+my $line_tmpl = q|NODENAME --mac MAC --storage-conf STORAGE_CONF|;
 my $glbl_tmpl = <<'END';
 #/bin/sh
 
@@ -23,8 +33,26 @@ LINE_TMPLS
 --source-control REMOTE_LDB_REPOSITORY_TYPE \
 --ldb-repository REMOTE_LDB_REPOSITORY_LOCATION \
 --verbose \
+-i INSTALL_KERNEL \
+-l LINUX_KERNEL \
 --secret SECRET_FILE
 END
+
+# Usage
+sub usage {
+  print << "EOD";
+Usage :
+ \$ $0 --start-node S_NODE --end-node E_NODE --exclude EXCLUDE1 EXCLUDE2 ...
+
+  S_NODE   : NODE FROM (e.g. hongo100)
+  E_NODE   : NODE TO   (e.g. hongo402)
+  EXCLUDEn : NODEs to be excluded from the range (e.g. hongo105 hongo107)
+
+Run Example :
+ \$ $0 --start-node sheep00 --end-node sheep64 --exclude sheep02 sheep04 sheep07 sheep34 sheep46 sheep47
+
+EOD
+}
 
 # Setup
 my $storage_dir = $ldb_repos . q|/lucie/storage|;
@@ -45,10 +73,16 @@ sub get_name_and_mac_addr {
 }
 
 sub sql_cmd {
+  my $hash = shift;
+  my $start_node = $hash->{START_NODE};
+  my $end_node = $hash->{END_NODE};
   my $repos = $ldb_repos;
   my $suf = q|bin/ldb sql|;
   $cluster_select_sql =~ s/'/\\'/;
   my $cmd = qq|$repos/$suf '$cluster_select_sql'|;
+  $cmd =~ s/START_NODE/$start_node/;
+  $cmd =~ s/END_NODE/$end_node/;
+  return $cmd;
 }
 
 sub node_lines {
@@ -84,17 +118,42 @@ sub check_network {
   return (q|OK|, $s[0]);
 }
 
-sub main() {
+sub select_install_kernel {
+  my $arch = shift;
+  if ($arch eq 'x86_64') {
+    return q|linux-image-2.6.18_hongo.installer.20090714_amd64.deb|;
+  } elsif ($arch eq 'i386') {
+    return q|linux-image-2.6.18-fai-kernels_1_i386.deb|;
+  } else {
+    return q||;
+  }
+}
+
+sub select_linux_kernel {
+  my $arch = shift;
+  if ($arch eq 'x86_64') {
+    return q|linux-image-amd64|;
+  } elsif ($arch eq 'i386') {
+    return q|linux-image-686|;
+  } else {
+    return q||;
+  }
+}
+
+sub main {
+  my $hash = shift;
   my @node_lines = ();
   my @mac_unknown = ();
   my @excluded = ();
   my @install_network_list = ();
+  my @archs = ();
   my $handle = undef;
-  open $handle, sql_cmd() . " | " or die "Can't open L4 pipe";
+  # Create SQL Command
+  open $handle, sql_cmd($hash) . " | " or die "Can't open L4 pipe";
   for my $line (<$handle>) {
     my $tmp_tmpl = $line_tmpl;
     my ($name, $inst_mac, $inst_network, $storage_type) = get_name_and_mac_addr($line);
-    if (grep /$name/, @exclude_list) {
+    if (grep /$name/, @{$hash->{EXCLUDE_LIST}}) {
       push @excluded, $name;
       next;
     }
@@ -109,6 +168,7 @@ sub main() {
       print STDERR q|!!! ERROR !!! |, $storage_conf_result, $/;
       return 0;
     }
+    # Replace Templates
     $tmp_tmpl =~ s/NODENAME/$name/;
     $tmp_tmpl =~ s/MAC/$inst_mac/;
     $tmp_tmpl =~ s/STORAGE_CONF/$storage_conf_path/;
@@ -150,5 +210,28 @@ sub main() {
 
 }
 
-main();
+# Check Argv
+sub check_argv{
+  my %a = ();
+  my ($start_node, $end_node);
+  my $help;
+  my @exclude;
+  GetOptions("start-node=s" => \$start_node, "end-node=s" => \$end_node,
+             "exclude:s{,}" => \@exclude, "help!" => \$help);
+  if (defined $help and $help = 1) {
+    usage();
+    exit(0);
+  }
+  if (!defined $start_node or !defined $end_node) {
+    usage();
+    exit(0);
+  }
+  
+  $a{START_NODE} = $start_node;
+  $a{END_NODE} = $end_node;
+  $a{EXCLUDE_LIST} = \@exclude;
+  return \%a;
+}
 
+my $hash = check_argv();
+main($hash);
