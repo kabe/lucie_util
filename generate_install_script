@@ -22,7 +22,7 @@ my $remote_ldb_repository = q|svn+ssh://intri@www.intrigger.jp/home/intri/SVN/L4
 ###################################################################
 
 # Templates
-my $cluster_select_sql = q|select name, mgmt_mac, mgmt_netmask, storage_conf_type from host where name>="START_NODE" and name<="END_NODE"|;
+my $cluster_select_sql = q|select name, mgmt_mac, mgmt_netmask, storage_conf_type, arch from host where name>="START_NODE" and name<="END_NODE"|;
 my $line_tmpl = q|NODENAME --mac MAC --storage-conf STORAGE_CONF|;
 my $glbl_tmpl = <<'END';
 #/bin/sh
@@ -62,14 +62,15 @@ if ($DEBUG) {
 }
 
 # Util
-sub get_name_and_mac_addr {
+sub get_nodeinfo {
   my $line = shift;
   chomp $line;
-  my ($name, $inst_mac, $inst_network, $storage_type) = split(/\|/, $line);
+  my ($name, $inst_mac, $inst_network, $storage_type, $arch) = split(/\|/, $line);
   $inst_mac = undef if $inst_mac eq "";
   $inst_network = undef if $inst_network eq "";
   $storage_type = undef if $storage_type eq "";
-  return ($name, $inst_mac, $inst_network, $storage_type);
+  $arch = undef if $arch eq "";
+  return ($name, $inst_mac, $inst_network, $storage_type, $arch);
 }
 
 sub sql_cmd {
@@ -118,11 +119,23 @@ sub check_network {
   return (q|OK|, $s[0]);
 }
 
+sub check_arch {
+  my $aref = shift;
+  my @s = sort @$aref;
+  if (!defined $s[0]) {
+    return q|Install Kernel for some node(s) undefined!|;
+  }
+  if ($s[0] ne $s[$#s]) {
+    return q|Some of the arch configuration differs!|;
+  }
+  return q|OK|;
+}
+
 sub select_install_kernel {
   my $arch = shift;
   if ($arch eq 'x86_64') {
     return q|linux-image-2.6.18_hongo.installer.20090714_amd64.deb|;
-  } elsif ($arch eq 'i386') {
+  } elsif ($arch eq 'i686') {
     return q|linux-image-2.6.18-fai-kernels_1_i386.deb|;
   } else {
     return q||;
@@ -133,7 +146,7 @@ sub select_linux_kernel {
   my $arch = shift;
   if ($arch eq 'x86_64') {
     return q|linux-image-amd64|;
-  } elsif ($arch eq 'i386') {
+  } elsif ($arch eq 'i686') {
     return q|linux-image-686|;
   } else {
     return q||;
@@ -152,7 +165,7 @@ sub main {
   open $handle, sql_cmd($hash) . " | " or die "Can't open L4 pipe";
   for my $line (<$handle>) {
     my $tmp_tmpl = $line_tmpl;
-    my ($name, $inst_mac, $inst_network, $storage_type) = get_name_and_mac_addr($line);
+    my ($name, $inst_mac, $inst_network, $storage_type, $arch) = get_nodeinfo($line);
     if (grep /$name/, @{$hash->{EXCLUDE_LIST}}) {
       push @excluded, $name;
       next;
@@ -168,6 +181,8 @@ sub main {
       print STDERR q|!!! ERROR !!! |, $storage_conf_result, $/;
       return 0;
     }
+    # arch
+    push @archs, $arch;
     # Replace Templates
     $tmp_tmpl =~ s/NODENAME/$name/;
     $tmp_tmpl =~ s/MAC/$inst_mac/;
@@ -188,6 +203,18 @@ sub main {
     print STDERR q|!!! ERROR !!! |, q|Secret file doesn't exist at |, $secret_file, $/;
     return 0;
   }
+  # Check architechture
+  my ($arch_result) = check_arch(\@archs);
+  if ($arch_result ne q|OK|) {
+    print STDERR q|!!! ERROR !!! |, $arch_result, $/;
+    return 0;
+  }
+  my $inst_kernel = select_install_kernel($archs[0]);
+  my $linux_kernel = select_linux_kernel($archs[0]);
+  if (!defined $inst_kernel or !defined $linux_kernel) {
+    print q|Unknown architechture (|, $archs[0], q|): abort|, $/;
+    return 0;
+  }
 
   # OUTPUT
   my $nl = node_lines(\@node_lines);
@@ -197,6 +224,8 @@ sub main {
   $glbl_tmpl =~ s/REMOTE_LDB_REPOSITORY_TYPE/$remote_ldb_repository_type/;
   $glbl_tmpl =~ s/REMOTE_LDB_REPOSITORY_LOCATION/$remote_ldb_repository/;
   $glbl_tmpl =~ s/SECRET_FILE/$secret_file/;
+  $glbl_tmpl =~ s/INSTALL_KERNEL/$inst_kernel/;
+  $glbl_tmpl =~ s/LINUX_KERNEL/$linux_kernel/;
   print $glbl_tmpl;
 
   if (@excluded != 0) {
