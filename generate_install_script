@@ -22,14 +22,13 @@ my $remote_ldb_repository = q|svn+ssh://intri@www.intrigger.jp/home/intri/SVN/L4
 ###################################################################
 
 # Templates
-my $cluster_select_sql = q|select name, mgmt_mac, mgmt_netmask, storage_conf_type, arch from host where name>="START_NODE" and name<="END_NODE"|;
-my $line_tmpl = q|NODENAME --mac MAC --storage-conf STORAGE_CONF|;
+my $cluster_select_sql = q|select name, install_mac, install_netmask, storage_conf_type, arch from host where name>="START_NODE" and name<="END_NODE"|;
+my $line_tmpl = q|NODENAME --mac MAC --storage-conf STORAGE_CONF --ip-address IP_ADDRESS --netmask NETMASK|;
 my $glbl_tmpl = <<'END';
 #/bin/sh
 
 ./node install-multi \
 LINE_TMPLS
---netmask INSTALL_NETMASK \
 --source-control REMOTE_LDB_REPOSITORY_TYPE \
 --ldb-repository REMOTE_LDB_REPOSITORY_LOCATION \
 --verbose \
@@ -153,6 +152,37 @@ sub select_linux_kernel {
   }
 }
 
+sub get_ip_address {
+  my $name = shift;
+  my $netmask = shift;
+  my $mac = shift;
+  my $sql_tmpl = q|select IP_ADDRESS, NETMASK, MAC_ADDRESS from host where name="NAME"|;
+  # Trials
+  my %trials = (
+                global0 => qw(global_address global_netmask global_mac0),
+                global1 => qw(global_address global_netmask global_mac1),
+                private => qw(private_address private_netmask private_mac),
+                mgmt => qw(mgmt_address mgmt_netmask mgmt_mac),
+                mgmt2 => qw(mgmt2_address mgmt2_netmask mgmt2_mac),
+               );
+  for my $nw_type (keys %trials) {
+    my $tmpl = $sql_tmpl;
+    $tmpl =~ s/IP_ADDRESS/$trials{nw_type}[0]/;
+    $tmpl =~ s/NETMASK/$trials{nw_type}[0]/;
+    $tmpl =~ s/MAC_ADDRESS/$trials{nw_type}[0]/;
+    if ($DEBUG) { print $tmpl, $/; }
+    my $handle = undef;
+    open $handle, $tmpl . " | " or die "Can't execute SQL";
+    my $line = <$handle>; # Should be only one line
+    close $handle;
+    my ($t_ip, $t_nm, $t_mac) = split(/,/, $line);
+    if ($t_nm eq $netmask and $t_mac eq $mac) {
+      return $t_ip;
+    }
+  }
+  return undef;
+}
+
 sub main {
   my $hash = shift;
   my @node_lines = ();
@@ -183,10 +213,18 @@ sub main {
     }
     # arch
     push @archs, $arch;
+    # Get IP address by netmask and MAC Address
+    my $inst_ip_address = get_ip_address($name, $inst_netmask, $inst_mac);
+    if (!defined $inst_ip_address) {
+      print STDERR q|!!! ERROR !!! |, qq|Can't find IP Address for $name corresponding netmask and MAC address|, $/;
+      return 0;
+    }
     # Replace Templates
     $tmp_tmpl =~ s/NODENAME/$name/;
     $tmp_tmpl =~ s/MAC/$inst_mac/;
     $tmp_tmpl =~ s/STORAGE_CONF/$storage_conf_path/;
+    $tmp_tmpl =~ s/NETMASK/$inst_netmask/;
+    $tmp_tmpl =~ s/IP_ADDRESS/$inst_ip_address/;
     $tmp_tmpl = qq|"$tmp_tmpl" \\\n|;
     push @node_lines, $tmp_tmpl;
   }
