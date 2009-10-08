@@ -148,12 +148,9 @@ sub check_netmask {
 
 sub check_arch {
   my $aref = shift;
-  my @s = sort @$aref;
-  if (!defined $s[0]) {
-    return q|Install Kernel for some node(s) undefined!|;
-  }
-  if ($s[0] ne $s[$#s]) {
-    return q|Some of the arch configuration differs!|;
+  check_array_consistent($aref, 'arch');
+  return 1;
+}
   }
   return q|OK|;
 }
@@ -262,11 +259,7 @@ sub main {
     return 0;
   }
   # Check architechture
-  my ($arch_result) = check_arch(\@archs);
-  if ($arch_result ne q|OK|) {
-    print STDERR q|!!! ERROR !!! |, $arch_result, $/;
-    return 0;
-  }
+  check_arch(\@archs);
   my $inst_kernel = select_install_kernel($archs[0]);
   my $linux_kernel = select_linux_kernel($archs[0]);
   if (!defined $inst_kernel or !defined $linux_kernel) {
