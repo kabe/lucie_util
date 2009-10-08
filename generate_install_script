@@ -67,7 +67,14 @@ sub error{
   my $tmpl;
   if (!defined $error_type) {
     $tmpl = q|Undefined|;
+  } elsif ($error_type == 1) { # inconsistent
+    $tmpl = q|Inconsistent|;
+  } elsif ($error_type == 2) { # notfound
+    $tmpl = q|NOTFOUND|;
+  } else {
+    $tmpl = q|Unknown|;
   }
+
   printf STDERR q|!!! ERROR !!! %s : %s|, $tmpl, $additional_message;
   exit(1);
 }
