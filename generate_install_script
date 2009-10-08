@@ -212,7 +212,7 @@ sub main {
   open $handle, sql_cmd($hash) . " | " or die "Can't open L4 pipe";
   for my $line (<$handle>) {
     my $tmp_tmpl = $line_tmpl;
-    my ($name, $inst_mac, $inst_netmask, $storage_type, $arch) = get_nodeinfo($line);
+    my ($name, $inst_mac, $inst_netmask, $inst_addr, $storage_type, $arch) = get_nodeinfo($line);
     if (grep /$name/, @{$hash->{EXCLUDE_LIST}}) {
       push @excluded, $name;
       next;
@@ -225,18 +225,12 @@ sub main {
     my $storage_conf_path = check_storage($storage_type);
     # arch
     push @archs, $arch;
-    # Get IP address by netmask and MAC Address
-    my $inst_ip_address = get_ip_address($name, $inst_netmask, $inst_mac);
-    if (!defined $inst_ip_address) {
-      print STDERR q|!!! ERROR !!! |, qq|Can't find IP Address for $name corresponding netmask and MAC address|, $/;
-      return 0;
-    }
     # Replace Templates
     $tmp_tmpl =~ s/NODENAME/$name/;
     $tmp_tmpl =~ s/MAC/$inst_mac/;
     $tmp_tmpl =~ s/STORAGE_CONF/$storage_conf_path/;
     $tmp_tmpl =~ s/NETMASK/$inst_netmask/;
-    $tmp_tmpl =~ s/IP_ADDRESS/$inst_ip_address/;
+    $tmp_tmpl =~ s/IP_ADDRESS/$inst_addr/;
     $tmp_tmpl = qq|"$tmp_tmpl" \\\n|;
     push @node_lines, $tmp_tmpl;
   }
