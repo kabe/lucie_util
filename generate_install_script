@@ -216,7 +216,6 @@ sub main {
   my @node_lines = ();
   my @mac_unknown = ();
   my @excluded = ();
-  my @install_netmask_list = ();
   my @archs = ();
   my $handle = undef;
   # Create SQL Command
@@ -232,7 +231,6 @@ sub main {
       push @mac_unknown, $name;
       next;
     }
-    push @install_netmask_list, $inst_netmask;
     # Check storage configuration file
     my ($storage_conf_result, $storage_conf_path) = check_storage($storage_type);
     if ($storage_conf_result ne q|OK|) {
@@ -258,12 +256,6 @@ sub main {
   }
   close $handle;
 
-  # Check install netmask
-  my ($install_netmask_result, $install_netmask) = check_netmask(\@install_netmask_list);
-  if ($install_netmask_result ne q|OK|) {
-    print STDERR q|!!! ERROR !!! |, $install_netmask_result, $/;
-    return 0;
-  }
   # Check secret file
   if ($check_secret_file and ! -f $secret_file) {
     print STDERR q|!!! ERROR !!! |, q|Secret file doesn't exist at |, $secret_file, $/;
@@ -286,7 +278,6 @@ sub main {
   my $nl = node_lines(\@node_lines);
   chomp $nl;
   $glbl_tmpl =~ s/LINE_TMPLS/$nl/;
-  $glbl_tmpl =~ s/INSTALL_NETMASK/$install_netmask/;
   $glbl_tmpl =~ s/REMOTE_LDB_REPOSITORY_TYPE/$remote_ldb_repository_type/;
   $glbl_tmpl =~ s/REMOTE_LDB_REPOSITORY_LOCATION/$remote_ldb_repository/;
   $glbl_tmpl =~ s/SECRET_FILE/$secret_file/;
