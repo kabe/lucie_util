@@ -170,37 +170,6 @@ sub select_linux_kernel {
   }
 }
 
-sub get_ip_address {
-  my $name = shift;
-  my $netmask = shift;
-  my $mac = shift;
-  my $sql_tmpl = q|select IP_ADDRESS, NETMASK, MAC_ADDRESS from host where name="NAME"|;
-  # Trials
-  my %trials = (
-                global0 => qw(global_address global_netmask global_mac0),
-                global1 => qw(global_address global_netmask global_mac1),
-                private => qw(private_address private_netmask private_mac),
-                mgmt => qw(mgmt_address mgmt_netmask mgmt_mac),
-                mgmt2 => qw(mgmt2_address mgmt2_netmask mgmt2_mac),
-               );
-  for my $nw_type (keys %trials) {
-    my $tmpl = $sql_tmpl;
-    $tmpl =~ s/IP_ADDRESS/$trials{nw_type}[0]/;
-    $tmpl =~ s/NETMASK/$trials{nw_type}[0]/;
-    $tmpl =~ s/MAC_ADDRESS/$trials{nw_type}[0]/;
-    if ($DEBUG) { print $tmpl, $/; }
-    my $handle = undef;
-    open $handle, $tmpl . " | " or die "Can't execute SQL";
-    my $line = <$handle>; # Should be only one line
-    close $handle;
-    my ($t_ip, $t_nm, $t_mac) = split(/,/, $line);
-    if ($t_nm eq $netmask and $t_mac eq $mac) {
-      return $t_ip;
-    }
-  }
-  return undef;
-}
-
 sub main {
   my $hash = shift;
   my @node_lines = ();
