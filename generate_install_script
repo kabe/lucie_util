@@ -222,11 +222,7 @@ sub main {
       next;
     }
     # Check storage configuration file
-    my ($storage_conf_result, $storage_conf_path) = check_storage($storage_type);
-    if ($storage_conf_result ne q|OK|) {
-      print STDERR q|!!! ERROR !!! |, $storage_conf_result, $/;
-      return 0;
-    }
+    my $storage_conf_path = check_storage($storage_type);
     # arch
     push @archs, $arch;
     # Get IP address by netmask and MAC Address
