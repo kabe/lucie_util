@@ -107,57 +107,26 @@ sub check_storage {
   return (q|OK|, $storage_conf_file_path);
 }
 
-# Check array consistency
-# Returns:
-# $s[0] when all members are defined and consistent
-# undef when a part of the member(s) is(are) undefined
-# 0 when members of the array are not consistent
-sub check_array_consistency {
-  my $aref = shift;
-  my @s = sort @$aref;
-  return undef; if (!defined $s[0]);
-  return 0 if ($s[0] ne $s[$#s]);
-  return $s[0];
-}
-
-# Print Error and Exit
-# (error type, additional message)
-sub error {
-  my $error_type = shift;
-  my $additional_msg = shift | "";
-  my $tmpl;
-  if ($error_type = undef) { # undefined
-    $tmpl = q|Undefined|;
-  } elsif ($error_type = 0) { # inconsistent
-    $tmpl = q|Inconsistent|;
-  } elsif ($error_type = 1) { # invalid
-    $tmpl = q|Invalid|
-  } else { # unknown
-    $tmpl = q|Unknown|;
-  }
-  printf STDERR q|!!! ERROR !!! %s : %s|, $tmpl, $additional_msg;
-  exit(1);
-}
-
 sub check_netmask {
-  my $aref = shift;
-  my $ret = check_array_consistency($aref);
-  if (!defined $ret) {
-    error(undef, q|Install Netmask for some node(s) undefined!|);
+  my $nref = shift;
+  my @s = sort @$nref;
+  if (!defined $s[0]) {
+    return q|Install Netmask for some node(s) undefined!|;
   }
-  if (!$ret) {
-    error(1, q|Some of the install netmask configuration differs!|);
+  if ($s[0] ne $s[$#s]) {
+    return q|Some of the install netmask configuration differs!|;
   }
   return (q|OK|, $s[0]);
 }
 
 sub check_arch {
   my $aref = shift;
-  my $ret = check_array_consistency($aref);
-  if (!defined $ret) {
-    error(undef, q|Install Kernel for some node(s) undefined!|)
-  } elsif (!$ret) {
-    error(1, q|Some of the arch configuration differs!|);
+  my @s = sort @$aref;
+  if (!defined $s[0]) {
+    return q|Install Kernel for some node(s) undefined!|;
+  }
+  if ($s[0] ne $s[$#s]) {
+    return q|Some of the arch configuration differs!|;
   }
   return q|OK|;
 }
@@ -235,7 +204,11 @@ sub main {
     return 0;
   }
   # Check architechture
-  check_arch(\@archs);
+  my ($arch_result) = check_arch(\@archs);
+  if ($arch_result ne q|OK|) {
+    print STDERR q|!!! ERROR !!! |, $arch_result, $/;
+    return 0;
+  }
   my $inst_kernel = select_install_kernel($archs[0]);
   my $linux_kernel = select_linux_kernel($archs[0]);
   if (!defined $inst_kernel or !defined $linux_kernel) {
