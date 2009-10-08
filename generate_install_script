@@ -114,6 +114,14 @@ sub node_lines {
   return $str;
 }
 
+sub check_array_consistent {
+  my $aref = shift;
+  my $type = shift;
+  my @s = sort @$aref;
+  error(1, $type) if ($s[0] ne $s[$#s]);
+  return 1;
+}
+
 # Check storage.conf's existence
 # Return "OK" if everything is OK
 sub check_storage {
