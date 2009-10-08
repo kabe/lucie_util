@@ -155,7 +155,7 @@ sub select_install_kernel {
   } elsif ($arch eq 'i686') {
     return q|linux-image-2.6.18-fai-kernels_1_i386.deb|;
   } else {
-    return q||;
+    error(2, "Install Kernel " . $arch);
   }
 }
 
@@ -166,7 +166,7 @@ sub select_linux_kernel {
   } elsif ($arch eq 'i686') {
     return q|linux-image-686|;
   } else {
-    return q||;
+    error(2, "Linux Kernel " . $arch);
   }
 }
 
@@ -211,10 +211,6 @@ sub main {
   check_arch(\@archs);
   my $inst_kernel = select_install_kernel($archs[0]);
   my $linux_kernel = select_linux_kernel($archs[0]);
-  if (!defined $inst_kernel or !defined $linux_kernel) {
-    print q|Unknown architechture (|, $archs[0], q|): abort|, $/;
-    return 0;
-  }
 
   # OUTPUT
   my $nl = node_lines(\@node_lines);
