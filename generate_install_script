@@ -170,6 +170,13 @@ sub select_linux_kernel {
   }
 }
 
+sub select_kernel {
+  my $arch = shift;
+  my $inst_kernel = select_install_kernel($arch);
+  my $linux_kernel = select_linux_kernel($arch);
+  return ($install_kernel, $linux_kernel);
+}
+
 sub main {
   my $hash = shift;
   my @node_lines = ();
@@ -209,8 +216,7 @@ sub main {
   check_secret_file($f);
   # Check architechture
   check_arch(\@archs);
-  my $inst_kernel = select_install_kernel($archs[0]);
-  my $linux_kernel = select_linux_kernel($archs[0]);
+  my ($inst_kernel, $linux_kernel) = select_kernel($archs[0]);
 
   # OUTPUT
   my $nl = node_lines(\@node_lines);
