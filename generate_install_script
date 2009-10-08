@@ -123,27 +123,15 @@ sub check_array_consistent {
 }
 
 # Check storage.conf's existence
-# Return "OK" if everything is OK
+# Return Path if everything is OK
 sub check_storage {
   my $storage_type = shift; # Reference to the list of the names of storage.conf
   # File existence
   my $storage_conf_file_path = $storage_dir . '/' . $storage_type;
   if (! -f qq|$storage_conf_file_path|) {
-    return qq|Storage configuration file ($storage_conf_file_path) not exists!|;
+    error(2, qq|Storage configuration file ($storage_conf_file_path) not exists!|);
   }
-  return (q|OK|, $storage_conf_file_path);
-}
-
-sub check_netmask {
-  my $nref = shift;
-  my @s = sort @$nref;
-  if (!defined $s[0]) {
-    return q|Install Netmask for some node(s) undefined!|;
-  }
-  if ($s[0] ne $s[$#s]) {
-    return q|Some of the install netmask configuration differs!|;
-  }
-  return (q|OK|, $s[0]);
+  return $storage_conf_file_path;
 }
 
 sub check_arch {
@@ -151,8 +139,13 @@ sub check_arch {
   check_array_consistent($aref, 'arch');
   return 1;
 }
+
+sub check_secret_file {
+  my $file = shift;
+  if ($check_secret_file and ! -f $file) {
+    error(2, q|Secret file doesn't exist at | . $file);
   }
-  return q|OK|;
+  return 1;
 }
 
 sub select_install_kernel {
@@ -254,10 +247,7 @@ sub main {
   close $handle;
 
   # Check secret file
-  if ($check_secret_file and ! -f $secret_file) {
-    print STDERR q|!!! ERROR !!! |, q|Secret file doesn't exist at |, $secret_file, $/;
-    return 0;
-  }
+  check_secret_file($f);
   # Check architechture
   check_arch(\@archs);
   my $inst_kernel = select_install_kernel($archs[0]);
