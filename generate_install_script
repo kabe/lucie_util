@@ -12,8 +12,9 @@ my $DEBUG = 0;
 #################### CONFIGURATION BEGINS HERE ####################
 ###################################################################
 
-my $ldb_repos = q|~/L4|;
-my $secret_file = q|~/lucie/env.enc|;
+my $home = $ENV{HOME};
+my $ldb_repos = qq|$home/L4|;
+my $secret_file = qq|$home/lucie/env.enc|;
 my $remote_ldb_repository_type = q|Subversion|;
 my $remote_ldb_repository = q|svn+ssh://intri@www.intrigger.jp/home/intri/SVN/L4|;
 
@@ -96,7 +97,7 @@ sub error{
     $tmpl = q|Unknown|;
   }
 
-  printf STDERR q|!!! ERROR !!! %s : %s|, $tmpl, $additional_message;
+  printf STDERR q|!!! ERROR !!! %s : %s|, $tmpl, $additional_message, $/;
   exit(1);
 }
 
