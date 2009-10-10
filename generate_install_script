@@ -12,7 +12,7 @@ my $DEBUG = 1;
 #################### CONFIGURATION BEGINS HERE ####################
 ###################################################################
 
-my $ldb_repos = q|/home/kabe/git/L4|;
+my $ldb_repos = q|~/L4|;
 my $secret_file = q|~/lucie/env.enc|;
 my $remote_ldb_repository_type = q|Subversion|;
 my $remote_ldb_repository = q|svn+ssh://intri@www.intrigger.jp/home/intri/SVN/L4|;
