@@ -22,7 +22,7 @@ my $remote_ldb_repository = q|svn+ssh://intri@www.intrigger.jp/home/intri/SVN/L4
 ###################################################################
 
 # Templates
-my $cluster_select_sql = q|select name, install_mac, install_netmask, install_address, storage_conf_type, arch from host where name>="START_NODE" and name<="END_NODE"|;
+my $cluster_select_sql = q|select name, install_mac, install_netmask, install_ipaddr, storage_conf_type, arch from host where name>="START_NODE" and name<="END_NODE"|;
 my $line_tmpl = q|NODENAME --mac MAC --storage-conf STORAGE_CONF --ip-address IP_ADDRESS --netmask NETMASK|;
 my $glbl_tmpl = <<'END';
 #/bin/sh
@@ -89,7 +89,7 @@ sub get_nodeinfo {
   error(undef, qq|install_address for $name|) if $inst_addr eq "";
   error(undef, qq|storage_type for $name|) if $storage_type eq "";
   error(undef, qq|arch for $name|) if $arch eq "";
-  return ($name, $inst_mac, $inst_netmask, $storage_type, $arch);
+  return ($name, $inst_mac, $inst_netmask, $inst_addr, $storage_type, $arch);
 }
 
 sub sql_cmd {
@@ -174,7 +174,7 @@ sub select_kernel {
   my $arch = shift;
   my $inst_kernel = select_install_kernel($arch);
   my $linux_kernel = select_linux_kernel($arch);
-  return ($install_kernel, $linux_kernel);
+  return ($inst_kernel, $linux_kernel);
 }
 
 sub main {
@@ -213,7 +213,7 @@ sub main {
   close $handle;
 
   # Check secret file
-  check_secret_file($f);
+  check_secret_file($secret_file);
   # Check architechture
   check_arch(\@archs);
   my ($inst_kernel, $linux_kernel) = select_kernel($archs[0]);
