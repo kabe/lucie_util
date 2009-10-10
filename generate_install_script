@@ -49,6 +49,7 @@ Usage :
   S_NODE :    NODE FROM (e.g. hongo100)
   E_NODE :    NODE TO   (e.g. hongo402)
   EXCLUDEn :  NODEs to be excluded from the range (e.g. hongo105 hongo107)
+  DB_FILE :   Database file used by LDB (default: host.db)
 
   Options
     --help  : Show this message
@@ -98,9 +99,9 @@ sub error{
   my $tmpl;
   if (!defined $error_type) {
     $tmpl = q|Undefined|;
-  } elsif ($error_type == 1) {  # inconsistent
+  } elsif ($error_type == 1) { # inconsistent
     $tmpl = q|Inconsistent|;
-  } elsif ($error_type == 2) {  # notfound
+  } elsif ($error_type == 2) { # notfound
     $tmpl = q|NOTFOUND|;
   } else {
     $tmpl = q|Unknown|;
@@ -128,7 +129,9 @@ sub sql_cmd {
   my $start_node = $hash->{START_NODE};
   my $end_node = $hash->{END_NODE};
   my $repos = $ldb_repos;
-  my $suf = q|bin/ldb sql|;
+  my $db_file = $hash->{DB_FILE};
+  $db_file = "--db=" . $db_file if ($db_file);
+  my $suf = qq|bin/ldb $db_file sql|;
   $cluster_select_sql =~ s/'/\\'/;
   my $cmd = qq|$repos/$suf '$cluster_select_sql'|;
   $cmd =~ s/START_NODE/$start_node/;
@@ -275,11 +278,13 @@ sub main {
 sub check_argv{
   my %a = ();
   my ($start_node, $end_node);
+  my $db_file;
   my $help;
   my $debug;
   my @exclude;
   GetOptions("start-node=s" => \$start_node, "end-node=s" => \$end_node,
              "exclude:s{,}" => \@exclude, "help!" => \$help,
+             "db-file:s" => \$db_file,
              "debug!" => \$debug);
   if (defined $help and $help = 1) {
     usage();
@@ -292,9 +297,14 @@ sub check_argv{
   if (defined $debug and $debug = 1) {
     $DEBUG = 1;
   }
+  $db_file |= "";
+  if ($db_file and ! -f $db_file) {
+    error(2, $db_file);
+  }
   
   $a{START_NODE} = $start_node;
   $a{END_NODE} = $end_node;
+  $a{DB_FILE} = $db_file;
   $a{EXCLUDE_LIST} = \@exclude;
   return \%a;
 }
