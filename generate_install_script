@@ -6,7 +6,7 @@ use Getopt::Long;
 use Data::Dumper;
 
 # Debug ?
-my $DEBUG = 1;
+my $DEBUG = 0;
 
 ###################################################################
 #################### CONFIGURATION BEGINS HERE ####################
@@ -37,15 +37,36 @@ LINE_TMPLS
 --secret SECRET_FILE
 END
 
+if ($DEBUG) {
+  my $debug_str = << "END";
+Debug Information
+\$home : $home
+\$ldb_repos : $ldb_repos
+\$secret_file : $secret_file
+\$remote_ldb_repository_type : $remote_ldb_repository_type
+\$remote_ldb_repository : $remote_ldb_repository
+\$cluster_select_sql : $cluster_select_sql
+\$line_tmpl : $line_tmpl
+\$glbl_tmpl : $glbl_tmpl
+END
+  for my $debug_line (split(/\r?\n/, $debug_str)) {
+    print STDERR qq|# $debug_line \n|;
+  }
+}
+
 # Usage
 sub usage {
   print << "EOD";
 Usage :
- \$ $0 --start-node S_NODE --end-node E_NODE --exclude EXCLUDE1 EXCLUDE2 ...
+ \$ $0 --debug --start-node S_NODE --end-node E_NODE --exclude EXCLUDE1 EXCLUDE2 ...
 
-  S_NODE   : NODE FROM (e.g. hongo100)
-  E_NODE   : NODE TO   (e.g. hongo402)
-  EXCLUDEn : NODEs to be excluded from the range (e.g. hongo105 hongo107)
+  S_NODE :    NODE FROM (e.g. hongo100)
+  E_NODE :    NODE TO   (e.g. hongo402)
+  EXCLUDEn :  NODEs to be excluded from the range (e.g. hongo105 hongo107)
+
+  Options
+    --help  : Show this message
+    --debug : Print debug message to STDERR
 
 Run Example :
  \$ $0 --start-node sheep00 --end-node sheep64 --exclude sheep02 sheep04 sheep07 sheep34 sheep46 sheep47
@@ -245,9 +266,11 @@ sub check_argv{
   my %a = ();
   my ($start_node, $end_node);
   my $help;
+  my $debug;
   my @exclude;
   GetOptions("start-node=s" => \$start_node, "end-node=s" => \$end_node,
-             "exclude:s{,}" => \@exclude, "help!" => \$help);
+             "exclude:s{,}" => \@exclude, "help!" => \$help,
+             "debug!" => \$debug);
   if (defined $help and $help = 1) {
     usage();
     exit(0);
@@ -255,6 +278,9 @@ sub check_argv{
   if (!defined $start_node or !defined $end_node) {
     usage();
     exit(0);
+  }
+  if (defined $debug and $debug = 1) {
+    $DEBUG = 1;
   }
   
   $a{START_NODE} = $start_node;
