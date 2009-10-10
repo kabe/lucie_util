@@ -38,28 +38,13 @@ LINE_TMPLS
 --secret SECRET_FILE
 END
 
-if ($DEBUG) {
-  my $debug_str = << "END";
-Debug Information
-\$home : $home
-\$ldb_repos : $ldb_repos
-\$secret_file : $secret_file
-\$remote_ldb_repository_type : $remote_ldb_repository_type
-\$remote_ldb_repository : $remote_ldb_repository
-\$cluster_select_sql : $cluster_select_sql
-\$line_tmpl : $line_tmpl
-\$glbl_tmpl : $glbl_tmpl
-END
-  for my $debug_line (split(/\r?\n/, $debug_str)) {
-    print STDERR qq|# $debug_line \n|;
-  }
-}
 
 # Usage
 sub usage {
   print << "EOD";
 Usage :
- \$ $0 --debug --start-node S_NODE --end-node E_NODE --exclude EXCLUDE1 EXCLUDE2 ...
+ \$ $0 --start-node S_NODE --end-node E_NODE
+    [--debug] [--db_file DB_FILE] [--exclude EXCLUDE1 EXCLUDE2 ...]
 
   S_NODE :    NODE FROM (e.g. hongo100)
   E_NODE :    NODE TO   (e.g. hongo402)
@@ -78,20 +63,44 @@ EOD
 # Setup
 my $storage_dir = $ldb_repos . q|/lucie/storage|;
 my $check_secret_file = 1;
-if ($DEBUG) {
-  $check_secret_file = 0;
-}
 
 # Util
+
+sub print_debug_info {
+  my $hash = shift;
+  my @xluded = @{$hash->{EXCLUDE_LIST}};
+  if ($DEBUG) {
+    my $debug_str = << "END";
+Debug Information
+\$home : $home
+\$ldb_repos : $ldb_repos
+\$secret_file : $secret_file
+\$remote_ldb_repository_type : $remote_ldb_repository_type
+\$remote_ldb_repository : $remote_ldb_repository
+\$cluster_select_sql : $cluster_select_sql
+\$line_tmpl : $line_tmpl
+\$glbl_tmpl : $glbl_tmpl
+start node : $hash->{START_NODE}
+end node : $hash->{END_NODE}
+excluded node : @xluded
+DB file (If specified) : $hash->{DB_FILE}
+END
+    for my $debug_line (split(/\r?\n/, $debug_str)) {
+      print STDERR qq|# $debug_line \n|;
+    }
+  }
+}
+
+
 sub error{
   my $error_type = shift;
   my $additional_message = shift | '';
   my $tmpl;
   if (!defined $error_type) {
     $tmpl = q|Undefined|;
-  } elsif ($error_type == 1) { # inconsistent
+  } elsif ($error_type == 1) {  # inconsistent
     $tmpl = q|Inconsistent|;
-  } elsif ($error_type == 2) { # notfound
+  } elsif ($error_type == 2) {  # notfound
     $tmpl = q|NOTFOUND|;
   } else {
     $tmpl = q|Unknown|;
@@ -291,4 +300,6 @@ sub check_argv{
 }
 
 my $hash = check_argv();
+$check_secret_file = 0 if $DEBUG;
+print_debug_info($hash) if $DEBUG;
 main($hash);
