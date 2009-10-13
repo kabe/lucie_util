@@ -6,14 +6,15 @@ use Getopt::Long;
 use Data::Dumper;
 
 # Debug ?
-my $DEBUG = 1;
+my $DEBUG = 0;
 
 ###################################################################
 #################### CONFIGURATION BEGINS HERE ####################
 ###################################################################
 
-my $ldb_repos = q|/home/kabe/git/L4|;
-my $secret_file = q|~/lucie/env.enc|;
+my $home = $ENV{HOME};
+my $ldb_repos = qq|$home/L4|;
+my $secret_file = qq|$home/lucie/env.enc|;
 my $remote_ldb_repository_type = q|Subversion|;
 my $remote_ldb_repository = q|svn+ssh://intri@www.intrigger.jp/home/intri/SVN/L4|;
 
@@ -22,14 +23,13 @@ my $remote_ldb_repository = q|svn+ssh://intri@www.intrigger.jp/home/intri/SVN/L4
 ###################################################################
 
 # Templates
-my $cluster_select_sql = q|select name, mgmt_mac, mgmt_netmask, storage_conf_type, arch from host where name>="START_NODE" and name<="END_NODE"|;
-my $line_tmpl = q|NODENAME --mac MAC --storage-conf STORAGE_CONF|;
+my $cluster_select_sql = q|select name, install_mac, install_netmask, install_ipaddr, storage_conf_type, arch from host where name>="START_NODE" and name<="END_NODE"|;
+my $line_tmpl = q|NODENAME --mac MAC --storage-conf STORAGE_CONF --ip-address IP_ADDRESS --netmask NETMASK|;
 my $glbl_tmpl = <<'END';
 #/bin/sh
 
 ./node install-multi \
 LINE_TMPLS
---netmask INSTALL_NETMASK \
 --source-control REMOTE_LDB_REPOSITORY_TYPE \
 --ldb-repository REMOTE_LDB_REPOSITORY_LOCATION \
 --verbose \
@@ -38,15 +38,22 @@ LINE_TMPLS
 --secret SECRET_FILE
 END
 
+
 # Usage
 sub usage {
   print << "EOD";
 Usage :
- \$ $0 --start-node S_NODE --end-node E_NODE --exclude EXCLUDE1 EXCLUDE2 ...
+ \$ $0 --start-node S_NODE --end-node E_NODE
+    [--debug] [--db-file DB_FILE] [--exclude EXCLUDE1 EXCLUDE2 ...]
 
-  S_NODE   : NODE FROM (e.g. hongo100)
-  E_NODE   : NODE TO   (e.g. hongo402)
-  EXCLUDEn : NODEs to be excluded from the range (e.g. hongo105 hongo107)
+  S_NODE :    NODE FROM (e.g. hongo100)
+  E_NODE :    NODE TO   (e.g. hongo402)
+  EXCLUDEn :  NODEs to be excluded from the range (e.g. hongo105 hongo107)
+  DB_FILE :   Database file used by LDB (default: host.db)
+
+  Options
+    --help  : Show this message
+    --debug : Print debug message to STDERR
 
 Run Example :
  \$ $0 --start-node sheep00 --end-node sheep64 --exclude sheep02 sheep04 sheep07 sheep34 sheep46 sheep47
@@ -57,20 +64,64 @@ EOD
 # Setup
 my $storage_dir = $ldb_repos . q|/lucie/storage|;
 my $check_secret_file = 1;
-if ($DEBUG) {
-  $check_secret_file = 0;
-}
 
 # Util
+
+sub print_debug_info {
+  my $hash = shift;
+  my @xluded = @{$hash->{EXCLUDE_LIST}};
+  if ($DEBUG) {
+    my $debug_str = << "END";
+Debug Information
+\$home : $home
+\$ldb_repos : $ldb_repos
+\$secret_file : $secret_file
+\$remote_ldb_repository_type : $remote_ldb_repository_type
+\$remote_ldb_repository : $remote_ldb_repository
+\$cluster_select_sql : $cluster_select_sql
+\$line_tmpl : $line_tmpl
+\$glbl_tmpl : $glbl_tmpl
+start node : $hash->{START_NODE}
+end node : $hash->{END_NODE}
+excluded node : @xluded
+DB file (If specified) : $hash->{DB_FILE}
+END
+    for my $debug_line (split(/\r?\n/, $debug_str)) {
+      print STDERR qq|# $debug_line \n|;
+    }
+  }
+}
+
+
+sub error{
+  my $error_type = shift;
+  my $additional_message = shift | '';
+  my $tmpl;
+  if (!defined $error_type) {
+    $tmpl = q|Undefined|;
+  } elsif ($error_type == 1) { # inconsistent
+    $tmpl = q|Inconsistent|;
+  } elsif ($error_type == 2) { # notfound
+    $tmpl = q|NOTFOUND|;
+  } else {
+    $tmpl = q|Unknown|;
+  }
+
+  printf STDERR q|!!! ERROR !!! %s : %s|, $tmpl, $additional_message, $/;
+  exit(1);
+}
+
 sub get_nodeinfo {
   my $line = shift;
   chomp $line;
-  my ($name, $inst_mac, $inst_netmask, $storage_type, $arch) = split(/\|/, $line);
-  $inst_mac = undef if $inst_mac eq "";
-  $inst_netmask = undef if $inst_netmask eq "";
-  $storage_type = undef if $storage_type eq "";
-  $arch = undef if $arch eq "";
-  return ($name, $inst_mac, $inst_netmask, $storage_type, $arch);
+  my ($name, $inst_mac, $inst_netmask, $inst_addr, $storage_type, $arch) = split(/\|/, $line);
+  error(undef, qq|Column not found|) if $name eq "";
+  error(undef, qq|install_mac for $name|) if $inst_mac eq "";
+  error(undef, qq|install_netmask for $name|) if $inst_netmask eq "";
+  error(undef, qq|install_address for $name|) if $inst_addr eq "";
+  error(undef, qq|storage_type for $name|) if $storage_type eq "";
+  error(undef, qq|arch for $name|) if $arch eq "";
+  return ($name, $inst_mac, $inst_netmask, $inst_addr, $storage_type, $arch);
 }
 
 sub sql_cmd {
@@ -78,7 +129,9 @@ sub sql_cmd {
   my $start_node = $hash->{START_NODE};
   my $end_node = $hash->{END_NODE};
   my $repos = $ldb_repos;
-  my $suf = q|bin/ldb sql|;
+  my $db_file = $hash->{DB_FILE};
+  $db_file = "--db=" . $db_file if ($db_file);
+  my $suf = qq|bin/ldb $db_file sql|;
   $cluster_select_sql =~ s/'/\\'/;
   my $cmd = qq|$repos/$suf '$cluster_select_sql'|;
   $cmd =~ s/START_NODE/$start_node/;
@@ -95,40 +148,38 @@ sub node_lines {
   return $str;
 }
 
+sub check_array_consistent {
+  my $aref = shift;
+  my $type = shift;
+  my @s = sort @$aref;
+  error(1, $type) if ($s[0] ne $s[$#s]);
+  return 1;
+}
+
 # Check storage.conf's existence
-# Return "OK" if everything is OK
+# Return Path if everything is OK
 sub check_storage {
   my $storage_type = shift; # Reference to the list of the names of storage.conf
   # File existence
   my $storage_conf_file_path = $storage_dir . '/' . $storage_type;
   if (! -f qq|$storage_conf_file_path|) {
-    return qq|Storage configuration file ($storage_conf_file_path) not exists!|;
+    error(2, qq|Storage configuration file ($storage_conf_file_path) not exists!|);
   }
-  return (q|OK|, $storage_conf_file_path);
-}
-
-sub check_netmask {
-  my $nref = shift;
-  my @s = sort @$nref;
-  if (!defined $s[0]) {
-    return q|Install Netmask for some node(s) undefined!|;
-  }
-  if ($s[0] ne $s[$#s]) {
-    return q|Some of the install netmask configuration differs!|;
-  }
-  return (q|OK|, $s[0]);
+  return $storage_conf_file_path;
 }
 
 sub check_arch {
   my $aref = shift;
-  my @s = sort @$aref;
-  if (!defined $s[0]) {
-    return q|Install Kernel for some node(s) undefined!|;
+  check_array_consistent($aref, 'arch');
+  return 1;
+}
+
+sub check_secret_file {
+  my $file = shift;
+  if ($check_secret_file and ! -f $file) {
+    error(2, q|Secret file doesn't exist at | . $file);
   }
-  if ($s[0] ne $s[$#s]) {
-    return q|Some of the arch configuration differs!|;
-  }
-  return q|OK|;
+  return 1;
 }
 
 sub select_install_kernel {
@@ -138,7 +189,7 @@ sub select_install_kernel {
   } elsif ($arch eq 'i686') {
     return q|linux-image-2.6.18-fai-kernels_1_i386.deb|;
   } else {
-    return q||;
+    error(2, "Install Kernel " . $arch);
   }
 }
 
@@ -149,8 +200,15 @@ sub select_linux_kernel {
   } elsif ($arch eq 'i686') {
     return q|linux-image-686|;
   } else {
-    return q||;
+    error(2, "Linux Kernel " . $arch);
   }
+}
+
+sub select_kernel {
+  my $arch = shift;
+  my $inst_kernel = select_install_kernel($arch);
+  my $linux_kernel = select_linux_kernel($arch);
+  return ($inst_kernel, $linux_kernel);
 }
 
 sub main {
@@ -158,14 +216,13 @@ sub main {
   my @node_lines = ();
   my @mac_unknown = ();
   my @excluded = ();
-  my @install_netmask_list = ();
   my @archs = ();
   my $handle = undef;
   # Create SQL Command
   open $handle, sql_cmd($hash) . " | " or die "Can't open L4 pipe";
   for my $line (<$handle>) {
     my $tmp_tmpl = $line_tmpl;
-    my ($name, $inst_mac, $inst_netmask, $storage_type, $arch) = get_nodeinfo($line);
+    my ($name, $inst_mac, $inst_netmask, $inst_addr, $storage_type, $arch) = get_nodeinfo($line);
     if (grep /$name/, @{$hash->{EXCLUDE_LIST}}) {
       push @excluded, $name;
       next;
@@ -174,53 +231,31 @@ sub main {
       push @mac_unknown, $name;
       next;
     }
-    push @install_netmask_list, $inst_netmask;
     # Check storage configuration file
-    my ($storage_conf_result, $storage_conf_path) = check_storage($storage_type);
-    if ($storage_conf_result ne q|OK|) {
-      print STDERR q|!!! ERROR !!! |, $storage_conf_result, $/;
-      return 0;
-    }
+    my $storage_conf_path = check_storage($storage_type);
     # arch
     push @archs, $arch;
     # Replace Templates
     $tmp_tmpl =~ s/NODENAME/$name/;
     $tmp_tmpl =~ s/MAC/$inst_mac/;
     $tmp_tmpl =~ s/STORAGE_CONF/$storage_conf_path/;
+    $tmp_tmpl =~ s/NETMASK/$inst_netmask/;
+    $tmp_tmpl =~ s/IP_ADDRESS/$inst_addr/;
     $tmp_tmpl = qq|"$tmp_tmpl" \\\n|;
     push @node_lines, $tmp_tmpl;
   }
   close $handle;
 
-  # Check install netmask
-  my ($install_netmask_result, $install_netmask) = check_netmask(\@install_netmask_list);
-  if ($install_netmask_result ne q|OK|) {
-    print STDERR q|!!! ERROR !!! |, $install_netmask_result, $/;
-    return 0;
-  }
   # Check secret file
-  if ($check_secret_file and ! -f $secret_file) {
-    print STDERR q|!!! ERROR !!! |, q|Secret file doesn't exist at |, $secret_file, $/;
-    return 0;
-  }
+  check_secret_file($secret_file);
   # Check architechture
-  my ($arch_result) = check_arch(\@archs);
-  if ($arch_result ne q|OK|) {
-    print STDERR q|!!! ERROR !!! |, $arch_result, $/;
-    return 0;
-  }
-  my $inst_kernel = select_install_kernel($archs[0]);
-  my $linux_kernel = select_linux_kernel($archs[0]);
-  if (!defined $inst_kernel or !defined $linux_kernel) {
-    print q|Unknown architechture (|, $archs[0], q|): abort|, $/;
-    return 0;
-  }
+  check_arch(\@archs);
+  my ($inst_kernel, $linux_kernel) = select_kernel($archs[0]);
 
   # OUTPUT
   my $nl = node_lines(\@node_lines);
   chomp $nl;
   $glbl_tmpl =~ s/LINE_TMPLS/$nl/;
-  $glbl_tmpl =~ s/INSTALL_NETMASK/$install_netmask/;
   $glbl_tmpl =~ s/REMOTE_LDB_REPOSITORY_TYPE/$remote_ldb_repository_type/;
   $glbl_tmpl =~ s/REMOTE_LDB_REPOSITORY_LOCATION/$remote_ldb_repository/;
   $glbl_tmpl =~ s/SECRET_FILE/$secret_file/;
@@ -243,10 +278,14 @@ sub main {
 sub check_argv{
   my %a = ();
   my ($start_node, $end_node);
+  my $db_file;
   my $help;
+  my $debug;
   my @exclude;
   GetOptions("start-node=s" => \$start_node, "end-node=s" => \$end_node,
-             "exclude:s{,}" => \@exclude, "help!" => \$help);
+             "exclude:s{,}" => \@exclude, "help!" => \$help,
+             "db-file:s" => \$db_file,
+             "debug!" => \$debug);
   if (defined $help and $help = 1) {
     usage();
     exit(0);
@@ -255,12 +294,22 @@ sub check_argv{
     usage();
     exit(0);
   }
+  if (defined $debug and $debug = 1) {
+    $DEBUG = 1;
+  }
+  $db_file |= "";
+  if ($db_file and ! -f $db_file) {
+    error(2, $db_file);
+  }
   
   $a{START_NODE} = $start_node;
   $a{END_NODE} = $end_node;
+  $a{DB_FILE} = $db_file;
   $a{EXCLUDE_LIST} = \@exclude;
   return \%a;
 }
 
 my $hash = check_argv();
+$check_secret_file = 0 if $DEBUG;
+print_debug_info($hash) if $DEBUG;
 main($hash);
