@@ -44,7 +44,7 @@ sub usage {
   print << "EOD";
 Usage :
  \$ $0 --start-node S_NODE --end-node E_NODE
-    [--debug] [--db_file DB_FILE] [--exclude EXCLUDE1 EXCLUDE2 ...]
+    [--debug] [--db-file DB_FILE] [--exclude EXCLUDE1 EXCLUDE2 ...]
 
   S_NODE :    NODE FROM (e.g. hongo100)
   E_NODE :    NODE TO   (e.g. hongo402)
