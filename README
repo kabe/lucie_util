@@ -1,4 +1,8 @@
-This Repository includes tools for using Lucie Installer.
+* このレポジトリは何か？
 
-Sometimes files necessary for configuration of Lucie are committed.
-For specific use, those files are placed in the directories named the usage.
+Linux 自動インストールツール [http://lucie.is.titech.ac.jp:title=Lucie] の補助ユーティリティを格納するためのレポジトリです.
+
+これ単独では何の役にも立ちません.
+
+このレポジトリでは主に Lucie を動作させる際のコマンドラインオプションを生成します.
+

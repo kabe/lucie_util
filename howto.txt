@@ -1,0 +1,23 @@
+* ソースの取得
+
+このレポジトリ自体は [http://git-scm.com/:title=Git] で管理されています. Debian GNU/Linux や Ubuntu を使っている場合には git-core パッケージから取得できます.
+
+ソースの取得(clone) は以下のようにします.
+
+>|bash|
+$ git clone git://github.com/kabe/lucie_util
+||<
+
+これでカレントディレクトリ下に lucie_util というディレクトリが作られます.
+
+* 使い方
+
+使用する準備([[preparation]] 参照)ができていることを確認してください. 
+
+ターミナルで
+
+>|bash|
+lucie_util/ $ ./generate_install_script
+||<
+
+とすると, 使い方が表示されます. バージョンによって使い方は異なるので, その都度確認してください.

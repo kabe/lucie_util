@@ -1,0 +1,37 @@
+* 準備
+
+Lucie を使うためにはいくつかの準備が必要です。このツールは[http://lucie.is.titech.ac.jp:title=Lucie] とその設定ファイル群であるLDB の両方が適切に設定されていることを検査しています.したがって,まずLucie + LDB が動かせるような状況を設定しなければなりません.
+
+** ソフトウェアの準備
+
+: subversion : Lucie と LDB のレポジトリは現在いずれも Subversion で管理されています.セットアップを行う計算機上で Subversion をインストールする必要がありま
+す.
+: ssh : 現在 LDB は外部に公開されておらず, SSH 接続を行う必要があります. したがって, OpenSSH 等のクライアントをインストールする必要があります.
+: perl : 本コマンドライン生成スクリプトが Perl で書かれているため, Perl が必要です. しかし, Linux をインストールすれば Perl は必ず入って
+いることでしょう.
+: sqlite3 : LDB は SQLite3 で構成されているため, それを読みとるために SQLite3 が必要です.
+
+* リソースの取得
+
+** Lucie
+
+Lucie は subversion over HTTP で取得できます.
+
+>|bash|
+~ $ svn co http://lucie.is.titech.ac.jp/svn/trunk lucie
+||<
+
+** LDB
+
+LDB は subversion over SSH で取得できます. 適宜公開鍵を仕込んで取得します.
+
+>|bash|
+~ $ svn co svn+ssh://user@server:/path/to/repository L4
+||<
+
+ldb というコマンドが ~/L4/bin/ldb にある状態が一般的です.
+
+** 秘密ファイル
+
+LDB ではパスワード設定の目的で秘密ファイルを利用します. これは Lucie, LDB でバージョン管理されていないため, 何らかの方法で用意してください. 秘密ファイルは通常 ~/lucie/env.enc に配置されます. このファイルの存在は インストールスクリプト生成時にチェックされます((--debug オプションを付けた場合は除く)).
+
