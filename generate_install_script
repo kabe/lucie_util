@@ -17,6 +17,7 @@ my $ldb_repos = qq|$home/L4|;
 my $secret_file = qq|$home/lucie/env.enc|;
 my $remote_ldb_repository_type = q|Subversion|;
 my $remote_ldb_repository = q|svn+ssh://intri@www.intrigger.jp/home/intri/SVN/L4|;
+my $lucie_location = qq|$home/lucie|;
 
 ###################################################################
 ##################### CONFIGURATION ENDS HERE #####################
@@ -44,12 +45,18 @@ sub usage {
   print << "EOD";
 Usage :
  \$ $0 --start-node S_NODE --end-node E_NODE
-    [--debug] [--db-file DB_FILE] [--exclude EXCLUDE1 EXCLUDE2 ...]
+    [--debug] [--db-file DB_FILE] [--secret-file SECRET_FILE]
+    [--lucie LUCIE]
+    [--ldb-repository LDB_REPOSITORY]
+    [--exclude EXCLUDE1 EXCLUDE2 ...]
 
-  S_NODE :    NODE FROM (e.g. hongo100)
-  E_NODE :    NODE TO   (e.g. hongo402)
-  EXCLUDEn :  NODEs to be excluded from the range (e.g. hongo105 hongo107)
-  DB_FILE :   Database file used by LDB (default: host.db)
+  S_NODE :         NODE FROM (e.g. hongo100)
+  E_NODE :         NODE TO   (e.g. hongo402)
+  EXCLUDEn :       NODEs to be excluded from the range (e.g. hongo105 hongo107)
+  DB_FILE :        Database file used by LDB (default: host.db)
+  SECRET_FILE :    A file including secret information (encrypted with OpenSSL)
+  LUCIE :          Location of Lucie (default: \$HOME/lucie)
+  LDB_REPOSITORY : Location of LDB repository (default: \$HOME/L4)
 
   Options
     --help  : Show this message
@@ -62,7 +69,7 @@ EOD
 }
 
 # Setup
-my $storage_dir = $ldb_repos . q|/lucie/storage|;
+my $storage_dir_suffix = q|/lucie/storage|;
 my $check_secret_file = 1;
 
 # Util
@@ -136,6 +143,8 @@ sub sql_cmd {
   my $cmd = qq|$repos/$suf '$cluster_select_sql'|;
   $cmd =~ s/START_NODE/$start_node/;
   $cmd =~ s/END_NODE/$end_node/;
+  # Check there is LDB
+  error(2, "LDB") if (! -x qq|$repos/bin/ldb|);
   return $cmd;
 }
 
@@ -161,7 +170,7 @@ sub check_array_consistent {
 sub check_storage {
   my $storage_type = shift; # Reference to the list of the names of storage.conf
   # File existence
-  my $storage_conf_file_path = $storage_dir . '/' . $storage_type;
+  my $storage_conf_file_path = $ldb_repos . '/' . $storage_dir_suffix . '/' . $storage_type;
   if (! -f qq|$storage_conf_file_path|) {
     error(2, qq|Storage configuration file ($storage_conf_file_path) not exists!|);
   }
@@ -184,10 +193,18 @@ sub check_secret_file {
 
 sub select_install_kernel {
   my $arch = shift;
+  my $kernel_location = $lucie_location . '/kernels';
   if ($arch eq 'x86_64') {
-    return q|linux-image-2.6.18_hongo.installer.20090714_amd64.deb|;
+    #my $f = q|linux-image-2.6.18_hongo.installer.20090714_amd64.deb|;
+    my $f = q|linux-image-2.6.31.4_hongo.installer.20091022_amd64.deb|;
+    my $loc = $kernel_location . '/' . $f;
+    error (2, "Kernel package " . $loc)if (! -f $loc);
+    return $f;
   } elsif ($arch eq 'i686') {
-    return q|linux-image-2.6.18-fai-kernels_1_i386.deb|;
+    my $f = q|linux-image-2.6.18-fai-kernels_1_i386.deb|;
+    my $loc = $kernel_location . '/' . $f;
+    error (2, "Kernel package " . $loc)if (! -f $loc);
+    return $f;
   } else {
     error(2, "Install Kernel " . $arch);
   }
@@ -246,8 +263,6 @@ sub main {
   }
   close $handle;
 
-  # Check secret file
-  check_secret_file($secret_file);
   # Check architechture
   check_arch(\@archs);
   my ($inst_kernel, $linux_kernel) = select_kernel($archs[0]);
@@ -277,13 +292,19 @@ sub main {
 # Check Argv
 sub check_argv{
   my %a = ();
-  my ($start_node, $end_node);
-  my $db_file;
-  my $help;
-  my $debug;
+  my ($start_node, $end_node) = undef;
+  my $db_file = undef;
+  my $help = undef;
+  my $debug = undef;
+  my $secretf = undef;
+  my $ldb_repos_location = undef;
+  my $lucie_loc = undef;
   my @exclude;
   GetOptions("start-node=s" => \$start_node, "end-node=s" => \$end_node,
              "exclude:s{,}" => \@exclude, "help!" => \$help,
+             "secret-file:s" => \$secretf,
+             "ldb-repository:s" => \$ldb_repos_location,
+             "lucie:s" => \$lucie_loc,
              "db-file:s" => \$db_file,
              "debug!" => \$debug);
   if (defined $help and $help = 1) {
@@ -297,10 +318,19 @@ sub check_argv{
   if (defined $debug and $debug = 1) {
     $DEBUG = 1;
   }
+  # Check secret file
+  $secret_file = $secretf if(defined $secretf); # Option specified
+  check_secret_file($secret_file);
+  # Replace local LDB repository path
+  $ldb_repos = $ldb_repos_location if (defined $ldb_repos_location);
+  
   $db_file |= "";
   if ($db_file and ! -f $db_file) {
     error(2, $db_file);
   }
+
+  # Lucie location
+  $lucie_location = $lucie_loc if (defined $lucie_loc);
   
   $a{START_NODE} = $start_node;
   $a{END_NODE} = $end_node;
