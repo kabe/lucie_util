@@ -1,5 +1,10 @@
 #!/usr/bin/env perl
 
+###################################################################
+#                 Lucie Install Script Generator                  #
+#                                 Scripted by Tomoya Kabe         #
+###################################################################
+
 use strict;
 use warnings;
 use Getopt::Long;
@@ -29,7 +34,7 @@ my $line_tmpl = q|NODENAME --mac MAC --storage-conf STORAGE_CONF --ip-address IP
 my $glbl_tmpl = <<'END';
 #/bin/sh
 
-./node install-multi \
+LUCIE_LOCATION/node install-multi \
 LINE_TMPLS
 --source-control REMOTE_LDB_REPOSITORY_TYPE \
 --ldb-repository REMOTE_LDB_REPOSITORY_LOCATION \
@@ -276,6 +281,7 @@ sub main {
   $glbl_tmpl =~ s/SECRET_FILE/$secret_file/;
   $glbl_tmpl =~ s/INSTALL_KERNEL/$inst_kernel/;
   $glbl_tmpl =~ s/LINUX_KERNEL/$linux_kernel/;
+  $glbl_tmpl =~ s/LUCIE_LOCATION/$lucie_location/;
   print $glbl_tmpl;
 
   if (@excluded != 0) {
