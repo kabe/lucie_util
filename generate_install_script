@@ -123,17 +123,25 @@ sub error{
   exit(1);
 }
 
+# Expand node information from sql response.
+# each column is separated with '|', and an expanded variable is blank string if the column is blank.
 sub get_nodeinfo {
   my $line = shift;
   chomp $line;
   my ($name, $inst_mac, $inst_netmask, $inst_addr, $storage_type, $arch) = split(/\|/, $line);
+  return ($name, $inst_mac, $inst_netmask, $inst_addr, $storage_type, $arch);
+}
+
+# Check column fill except inst_mac column
+sub check_nodeinfo {
+  my ($name, $inst_mac, $inst_netmask, $inst_addr, $storage_type, $arch) = @_;
   error(undef, qq|Column not found|) if $name eq "";
-  error(undef, qq|install_mac for $name|) if $inst_mac eq "";
+  #error(undef, qq|install_mac for $name|) if $inst_mac eq "";
   error(undef, qq|install_netmask for $name|) if $inst_netmask eq "";
   error(undef, qq|install_address for $name|) if $inst_addr eq "";
   error(undef, qq|storage_type for $name|) if $storage_type eq "";
   error(undef, qq|arch for $name|) if $arch eq "";
-  return ($name, $inst_mac, $inst_netmask, $inst_addr, $storage_type, $arch);
+  return 1; # OK
 }
 
 sub sql_cmd {
@@ -249,7 +257,8 @@ sub main {
       push @excluded, $name;
       next;
     }
-    if (!defined $inst_mac) {
+    check_nodeinfo($name, $inst_mac, $inst_netmask, $inst_addr, $storage_type, $arch);
+    if ($inst_mac eq '') {
       push @mac_unknown, $name;
       next;
     }
