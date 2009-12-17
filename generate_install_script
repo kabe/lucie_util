@@ -10,7 +10,7 @@ use warnings;
 use Getopt::Long;
 use Data::Dumper;
 
-# Debug ?
+# Debug flag(global)
 my $DEBUG = 0;
 
 ###################################################################
@@ -18,11 +18,11 @@ my $DEBUG = 0;
 ###################################################################
 
 my $home = $ENV{HOME};
-my $ldb_repos = qq|$home/L4|;
-my $secret_file = qq|$home/lucie/env.enc|;
-my $remote_ldb_repository_type = q|Subversion|;
-my $remote_ldb_repository = q|svn+ssh://intri@www.intrigger.jp/home/intri/SVN/L4|;
-my $lucie_location = qq|$home/lucie|;
+my $default_lucie_wc = qq|$home/lucie|;
+my $default_ldb_wc = qq|$home/L4|;
+my $default_secret_file = qq|$home/lucie/env.enc|;
+my $default_remote_ldb_repository_type = q|Subversion|;
+my $default_remote_ldb_repository = q|svn+ssh://intri@www.intrigger.jp/home/intri/SVN/L4|;
 
 ###################################################################
 ##################### CONFIGURATION ENDS HERE #####################
@@ -32,9 +32,9 @@ my $lucie_location = qq|$home/lucie|;
 my $cluster_select_sql = q|select name, install_mac, install_netmask, install_ipaddr, storage_conf_type, arch, install_kernel from host where name>="START_NODE" and name<="END_NODE"|;
 my $line_tmpl = q|NODENAME --mac MAC --storage-conf STORAGE_CONF --ip-address IP_ADDRESS --netmask NETMASK|;
 my $glbl_tmpl = <<'END';
-#/bin/sh
+#!/bin/sh
 
-LUCIE_LOCATION/node install-multi \
+LUCIE_WC/node install-multi \
 LINE_TMPLS
 --source-control REMOTE_LDB_REPOSITORY_TYPE \
 --ldb-repository REMOTE_LDB_REPOSITORY_LOCATION \
@@ -50,18 +50,18 @@ sub usage {
   print << "EOD";
 Usage :
  \$ $0 --start-node S_NODE --end-node E_NODE
-    [--debug] [--db-file DB_FILE] [--secret-file SECRET_FILE]
-    [--lucie LUCIE]
-    [--ldb-repository LDB_REPOSITORY]
+    [Options]
+    [--db-file DB_FILE] [--secret-file SECRET_FILE]
+    [--ldb-wc LDB_WC] [--lucie-wc LUCIE_WC]
     [--exclude EXCLUDE1 EXCLUDE2 ...]
 
   S_NODE :         NODE FROM (e.g. hongo100)
   E_NODE :         NODE TO   (e.g. hongo402)
   EXCLUDEn :       NODEs to be excluded from the range (e.g. hongo105 hongo107)
   DB_FILE :        Database file used by LDB (default: host.db)
-  SECRET_FILE :    A file including secret information (encrypted with OpenSSL)
-  LUCIE :          Location of Lucie (default: \$HOME/lucie)
-  LDB_REPOSITORY : Location of LDB repository (default: \$HOME/L4)
+  SECRET_FILE :    A file including secret information (default: \$HOME/lucie/env.enc)
+  LUCIE_WC :       Location of Lucie (default: \$HOME/lucie)
+  LDB_WC :         Location of LDB repository (default: \$HOME/L4)
 
   Options
     --help  : Show this message
@@ -73,10 +73,6 @@ Run Example :
 EOD
 }
 
-# Setup
-my $storage_dir_suffix = q|/lucie/storage|;
-my $check_secret_file = 1;
-
 # Util
 
 sub print_debug_info {
@@ -86,10 +82,11 @@ sub print_debug_info {
     my $debug_str = << "END";
 Debug Information
 \$home : $home
-\$ldb_repos : $ldb_repos
-\$secret_file : $secret_file
-\$remote_ldb_repository_type : $remote_ldb_repository_type
-\$remote_ldb_repository : $remote_ldb_repository
+\$lucie_wc : $hash->{lucie_wc}
+\$ldb_wc : $hash->{ldb_wc}
+\$secret_file : $hash->{secret_file}
+\$remote_ldb_repository_type : $hash->{remote_ldb_repository_type}
+\$remote_ldb_repository : $hash->{remote_ldb_repository}
 \$cluster_select_sql : $cluster_select_sql
 \$line_tmpl : $line_tmpl
 \$glbl_tmpl : $glbl_tmpl
@@ -101,6 +98,7 @@ END
     for my $debug_line (split(/\r?\n/, $debug_str)) {
       print STDERR qq|# $debug_line \n|;
     }
+    print STDERR $/;
   }
 }
 
@@ -136,7 +134,6 @@ sub get_nodeinfo {
 sub check_nodeinfo {
   my ($name, $inst_mac, $inst_netmask, $inst_addr, $storage_type, $arch) = @_;
   error(undef, qq|Column not found|) if $name eq "";
-  #error(undef, qq|install_mac for $name|) if $inst_mac eq "";
   error(undef, qq|install_netmask for $name|) if $inst_netmask eq "";
   error(undef, qq|install_address for $name|) if $inst_addr eq "";
   error(undef, qq|storage_type for $name|) if $storage_type eq "";
@@ -148,16 +145,16 @@ sub sql_cmd {
   my $hash = shift;
   my $start_node = $hash->{START_NODE};
   my $end_node = $hash->{END_NODE};
-  my $repos = $ldb_repos;
+  my $ldb_wc = $hash->{ldb_wc};
   my $db_file = $hash->{DB_FILE};
   $db_file = "--db=" . $db_file if ($db_file);
   my $suf = qq|bin/ldb $db_file sql|;
   $cluster_select_sql =~ s/'/\\'/;
-  my $cmd = qq|$repos/$suf '$cluster_select_sql'|;
+  my $cmd = qq|$ldb_wc/$suf '$cluster_select_sql'|;
   $cmd =~ s/START_NODE/$start_node/;
   $cmd =~ s/END_NODE/$end_node/;
   # Check there is LDB
-  error(2, "LDB") if (! -x qq|$repos/bin/ldb|);
+  error(2, "LDB") if (! -x qq|$ldb_wc/bin/ldb|);
   return $cmd;
 }
 
@@ -181,9 +178,10 @@ sub check_array_consistent {
 # Check storage.conf's existence
 # Return Path if everything is OK
 sub check_storage {
+  my $hash = shift;
   my $storage_type = shift; # Reference to the list of the names of storage.conf
   # File existence
-  my $storage_conf_file_path = $ldb_repos . '/' . $storage_dir_suffix . '/' . $storage_type;
+  my $storage_conf_file_path = $hash->{storage_dir} . '/' . $storage_type;
   if (! -f qq|$storage_conf_file_path|) {
     error(2, qq|Storage configuration file ($storage_conf_file_path) not exists!|);
   }
@@ -196,9 +194,16 @@ sub check_arch {
   return 1;
 }
 
+sub check_instkernel {
+  my $aref = shift;
+  check_array_consistent($aref, 'install_kernel');
+  return $aref->[0];
+}
+
 sub check_secret_file {
+  my $check_flg = shift;
   my $file = shift;
-  if ($check_secret_file and ! -f $file) {
+  if (!defined $check_flg and ! -f $file) {
     error(2, q|Secret file doesn't exist at | . $file);
   }
   return 1;
@@ -228,13 +233,12 @@ sub main {
   my @excluded = ();
   my @archs = ();
   my $handle = undef;
-  my $install_kernel;
+  my @install_kernels;
   # Create SQL Command
   open $handle, sql_cmd($hash) . " | " or die "Can't open L4 pipe";
   for my $line (<$handle>) {
     my $tmp_tmpl = $line_tmpl;
-    my ($name, $inst_mac, $inst_netmask, $inst_addr, $storage_type, $arch, $_install_kernel) = get_nodeinfo($line);
-    $install_kernel = $_install_kernel;
+    my ($name, $inst_mac, $inst_netmask, $inst_addr, $storage_type, $arch, $install_kernel) = get_nodeinfo($line);
     if (grep /$name/, @{$hash->{EXCLUDE_LIST}}) {
       push @excluded, $name;
       next;
@@ -245,9 +249,11 @@ sub main {
       next;
     }
     # Check storage configuration file
-    my $storage_conf_path = check_storage($storage_type);
+    my $storage_conf_path = check_storage($hash, $storage_type);
     # arch
     push @archs, $arch;
+    # install_kernel list
+    push @install_kernels, $install_kernel;
     # Replace Templates
     $tmp_tmpl =~ s/NODENAME/$name/;
     $tmp_tmpl =~ s/MAC/$inst_mac/;
@@ -261,19 +267,20 @@ sub main {
 
   # Check architechture
   check_arch(\@archs);
-  my $inst_kernel = $install_kernel;
   my $linux_kernel = select_kernel($archs[0]);
+  # Install Kernel(Lucie Kernel)
+  my $inst_kernel = check_instkernel(\@install_kernels);
 
   # OUTPUT
   my $nl = node_lines(\@node_lines);
   chomp $nl;
   $glbl_tmpl =~ s/LINE_TMPLS/$nl/;
-  $glbl_tmpl =~ s/REMOTE_LDB_REPOSITORY_TYPE/$remote_ldb_repository_type/;
-  $glbl_tmpl =~ s/REMOTE_LDB_REPOSITORY_LOCATION/$remote_ldb_repository/;
-  $glbl_tmpl =~ s/SECRET_FILE/$secret_file/;
+  $glbl_tmpl =~ s/REMOTE_LDB_REPOSITORY_TYPE/$hash->{remote_ldb_repository_type}/;
+  $glbl_tmpl =~ s/REMOTE_LDB_REPOSITORY_LOCATION/$hash->{remote_ldb_repository}/;
+  $glbl_tmpl =~ s/SECRET_FILE/$hash->{secret_file}/;
   $glbl_tmpl =~ s/INSTALL_KERNEL/$inst_kernel/;
   $glbl_tmpl =~ s/LINUX_KERNEL/$linux_kernel/;
-  $glbl_tmpl =~ s/LUCIE_LOCATION/$lucie_location/;
+  $glbl_tmpl =~ s/LUCIE_WC/$hash->{lucie_wc}/;
   print $glbl_tmpl;
 
   if (@excluded != 0) {
@@ -290,54 +297,69 @@ sub main {
 # Check Argv
 sub check_argv{
   my %a = ();
-  my ($start_node, $end_node) = undef;
-  my $db_file = undef;
-  my $help = undef;
-  my $debug = undef;
-  my $secretf = undef;
-  my $ldb_repos_location = undef;
-  my $lucie_loc = undef;
-  my @exclude;
-  GetOptions("start-node=s" => \$start_node, "end-node=s" => \$end_node,
-             "exclude:s{,}" => \@exclude, "help!" => \$help,
-             "secret-file:s" => \$secretf,
-             "ldb-repository:s" => \$ldb_repos_location,
-             "lucie:s" => \$lucie_loc,
-             "db-file:s" => \$db_file,
-             "debug!" => \$debug);
-  if (defined $help and $help = 1) {
+  my ($_start_node, $_end_node) = undef;
+  my $_db_file = undef;
+  my $_help = undef;
+  my $_debug = undef;
+  my $_nocheck_secret_file = undef;
+  my $_secretfile = undef;
+  my $_ldb_wc = undef;
+  my $_lucie_wc = undef;
+  my @_exclude;
+  GetOptions(
+             # Necessary Options
+             "start-node=s" => \$_start_node,
+             "end-node=s" => \$_end_node,
+             # Sometimes Used options
+             "exclude:s{,}" => \@_exclude,
+             "ldb-wc:s" => \$_ldb_wc,
+             "lucie-wc:s" => \$_lucie_wc,
+             # Rarely used options
+             "secret-file:s" => \$_secretfile,
+             "nocheck-secret-file!" => \$_nocheck_secret_file,
+             "help!" => \$_help,
+             "db-file:s" => \$_db_file,
+             "debug!" => \$_debug);
+  if (defined $_help and $_help = 1) {
     usage();
     exit(0);
   }
-  if (!defined $start_node or !defined $end_node) {
+  if (!defined $_start_node or !defined $_end_node) {
     usage();
     exit(0);
   }
-  if (defined $debug and $debug = 1) {
+  if (defined $_debug and $_debug = 1) {
     $DEBUG = 1;
   }
-  # Check secret file
-  $secret_file = $secretf if(defined $secretf); # Option specified
-  check_secret_file($secret_file);
-  # Replace local LDB repository path
-  $ldb_repos = $ldb_repos_location if (defined $ldb_repos_location);
-  
-  $db_file |= "";
+  # Lucie working copy
+  $a{lucie_wc} = $default_lucie_wc;
+  $a{lucie_wc} = $_lucie_wc if (defined $_lucie_wc);
+  # Set secret file
+  $a{secret_file} = $default_secret_file;
+  $a{secret_file} = $_secretfile if(defined $_secretfile);
+  check_secret_file($_nocheck_secret_file, $a{secret_file});
+  # LDB working copy
+  $a{ldb_wc} = $default_ldb_wc;
+  $a{ldb_wc} = $_ldb_wc if (defined $_ldb_wc);
+  # Storage conf directory
+  my $storage_dir_suffix = q|/lucie/storage|;
+  $a{storage_dir} = $a{ldb_wc} . $storage_dir_suffix;
+  # Remote LDB repository
+  $a{remote_ldb_repository} = $default_remote_ldb_repository;
+  $a{remote_ldb_repository_type} = $default_remote_ldb_repository_type;
+  # SQLite3 database file (if specified)
+  my $db_file |= "";
   if ($db_file and ! -f $db_file) {
     error(2, $db_file);
   }
-
-  # Lucie location
-  $lucie_location = $lucie_loc if (defined $lucie_loc);
   
-  $a{START_NODE} = $start_node;
-  $a{END_NODE} = $end_node;
+  $a{START_NODE} = $_start_node;
+  $a{END_NODE} = $_end_node;
   $a{DB_FILE} = $db_file;
-  $a{EXCLUDE_LIST} = \@exclude;
+  $a{EXCLUDE_LIST} = \@_exclude;
   return \%a;
 }
 
 my $hash = check_argv();
-$check_secret_file = 0 if $DEBUG;
 print_debug_info($hash) if $DEBUG;
 main($hash);
