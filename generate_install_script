@@ -29,7 +29,7 @@ my $lucie_location = qq|$home/lucie|;
 ###################################################################
 
 # Templates
-my $cluster_select_sql = q|select name, install_mac, install_netmask, install_ipaddr, storage_conf_type, arch from host where name>="START_NODE" and name<="END_NODE"|;
+my $cluster_select_sql = q|select name, install_mac, install_netmask, install_ipaddr, storage_conf_type, arch, install_kernel from host where name>="START_NODE" and name<="END_NODE"|;
 my $line_tmpl = q|NODENAME --mac MAC --storage-conf STORAGE_CONF --ip-address IP_ADDRESS --netmask NETMASK|;
 my $glbl_tmpl = <<'END';
 #/bin/sh
@@ -128,8 +128,8 @@ sub error{
 sub get_nodeinfo {
   my $line = shift;
   chomp $line;
-  my ($name, $inst_mac, $inst_netmask, $inst_addr, $storage_type, $arch) = split(/\|/, $line);
-  return ($name, $inst_mac, $inst_netmask, $inst_addr, $storage_type, $arch);
+  my ($name, $inst_mac, $inst_netmask, $inst_addr, $storage_type, $arch, $install_kernel) = split(/\|/, $line);
+  return ($name, $inst_mac, $inst_netmask, $inst_addr, $storage_type, $arch, $install_kernel);
 }
 
 # Check column fill except inst_mac column
@@ -174,7 +174,7 @@ sub check_array_consistent {
   my $aref = shift;
   my $type = shift;
   my @s = sort @$aref;
-  error(1, $type) if ($s[0] ne $s[$#s]);
+  error(1, $type) if (defined $s[$#s] and $s[0] ne $s[$#s]);
   return 1;
 }
 
@@ -204,25 +204,6 @@ sub check_secret_file {
   return 1;
 }
 
-sub select_install_kernel {
-  my $arch = shift;
-  my $kernel_location = $lucie_location . '/kernels';
-  if ($arch eq 'x86_64') {
-    #my $f = q|linux-image-2.6.18_hongo.installer.20090714_amd64.deb|;
-    my $f = q|linux-image-2.6.31.4_hongo.installer.20091022_amd64.deb|;
-    my $loc = $kernel_location . '/' . $f;
-    error (2, "Kernel package " . $loc)if (! -f $loc);
-    return $f;
-  } elsif ($arch eq 'i686') {
-    my $f = q|linux-image-2.6.18-fai-kernels_1_i386.deb|;
-    my $loc = $kernel_location . '/' . $f;
-    error (2, "Kernel package " . $loc)if (! -f $loc);
-    return $f;
-  } else {
-    error(2, "Install Kernel " . $arch);
-  }
-}
-
 sub select_linux_kernel {
   my $arch = shift;
   if ($arch eq 'x86_64') {
@@ -236,9 +217,8 @@ sub select_linux_kernel {
 
 sub select_kernel {
   my $arch = shift;
-  my $inst_kernel = select_install_kernel($arch);
   my $linux_kernel = select_linux_kernel($arch);
-  return ($inst_kernel, $linux_kernel);
+  return $linux_kernel;
 }
 
 sub main {
@@ -248,16 +228,18 @@ sub main {
   my @excluded = ();
   my @archs = ();
   my $handle = undef;
+  my $install_kernel;
   # Create SQL Command
   open $handle, sql_cmd($hash) . " | " or die "Can't open L4 pipe";
   for my $line (<$handle>) {
     my $tmp_tmpl = $line_tmpl;
-    my ($name, $inst_mac, $inst_netmask, $inst_addr, $storage_type, $arch) = get_nodeinfo($line);
+    my ($name, $inst_mac, $inst_netmask, $inst_addr, $storage_type, $arch, $_install_kernel) = get_nodeinfo($line);
+    $install_kernel = $_install_kernel;
     if (grep /$name/, @{$hash->{EXCLUDE_LIST}}) {
       push @excluded, $name;
       next;
     }
-    check_nodeinfo($name, $inst_mac, $inst_netmask, $inst_addr, $storage_type, $arch);
+    check_nodeinfo($name, $inst_mac, $inst_netmask, $inst_addr, $storage_type, $arch, $install_kernel);
     if ($inst_mac eq '') {
       push @mac_unknown, $name;
       next;
@@ -279,7 +261,8 @@ sub main {
 
   # Check architechture
   check_arch(\@archs);
-  my ($inst_kernel, $linux_kernel) = select_kernel($archs[0]);
+  my $inst_kernel = $install_kernel;
+  my $linux_kernel = select_kernel($archs[0]);
 
   # OUTPUT
   my $nl = node_lines(\@node_lines);
