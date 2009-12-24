@@ -17,7 +17,48 @@ $ git clone git://github.com/kabe/lucie_util
 ターミナルで
 
 >|bash|
-lucie_util/ $ ./generate_install_script
+lucie_util $ ./generate_install_script
 ||<
 
 とすると, 使い方が表示されます. バージョンによって使い方は異なるので, その都度確認してください.
+
+ここではバージョン2.2における使い方を記述します.
+
+** 基本形
+>|bash|
+$ ./generate_install_script --start-node foo000 --end-node foo010
+||<
+とすると, 文字列の大小で foo000 から foo010 の計算機をインストールするための Lucie コマンドが生成されます. これにあたって必要となる各種情報は LDB/host.db から取得しています.
+
+** LDB の所在を指定する
+情報は host.db から取得しているため, プログラムが host.db を見つけることができなければエラーとなります. デフォルトで $HOME/L4 に LDB がチェックアウトされている(したがって, $HOME/L4/host.db が存在する)ことを仮定しています. しかし, そうではない場合は --ldb-wc オプションによってLDB のワーキングコピー場所を指定することになります.
+>|bash|
+$ ./generate_install_script --start-node foo000 --end-node --ldb-wc $HOME/path/to/L4
+||<
+
+** データベースファイルだけ別に指定する
+LDB にはパーティション情報を規定する storage configuration files が入っているので必要なのですが, 各ホストに関する情報は必ずしも host.db から取得しなくても構いません. 場合によっては host.db ではない別のファイルからデータを取得したい場合もあるということで, このデータベースのみ --db-file オプションにより別途指定できます.
+
+>|bash|
+$ ./generate_install_script --start-node foo000 --end-node --ldb-wc $HOME/path/to/L4 --db-file /path/to/hoge.db
+||<
+
+** インストール対象から外したい計算機を指定する
+
+通常 --start-node から --end-node まで文字列範囲に入っている全ての計算機に対するコマンドを生成しますが, そのうち故障などの事情でインストールしたくない計算機がある場合のため, --exclude オプションにより一部計算機を除外することができます.
+
+例)foo004 と foo006 をインストール対象から除外する
+>|bash|
+$ ./generate_install_script --start-node foo000 --end-node foo010 --exclude foo004 foo006
+||<
+
+** secret-file
+
+計算機のインストールが終わった後, Linux の root パスワード(および, 存在すれば IPMI)を設定するために暗号化された秘密ファイルが用いられます. これは $HOME/lucie/env.enc というファイル名であると仮定されています. プログラム実行時にこのファイルを見つけられなければエラーメッセージが表示されます. --secret オプションによってファイルの位置を指定することができます(絶対パスで指定してください). また, --nocheck-secret-file オプションを付けた場合はチェックが行われません.
+
+>|bash|
+$ ./generate_install_script --start-node foo000 --end-node foo010 --secret-file /path/to/secret.file
+||<
+
+
+
