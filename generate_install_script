@@ -113,6 +113,8 @@ sub error{
     $tmpl = q|Inconsistent|;
   } elsif ($error_type == 2) { # notfound
     $tmpl = q|NOTFOUND|;
+  } elsif ($error_type == 3) { # invalid
+    $tmpl = q|INVALID|;
   } else {
     $tmpl = q|Unknown|;
   }
@@ -197,6 +199,7 @@ sub check_arch {
 sub check_instkernel {
   my $aref = shift;
   check_array_consistent($aref, 'install_kernel');
+  error(3, q|install_kernel is not set|) if ($aref->[0] eq "");
   return $aref->[0];
 }
 
