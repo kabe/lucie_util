@@ -198,8 +198,12 @@ sub check_arch {
 
 sub check_instkernel {
   my $aref = shift;
+  my $hash = shift;
   check_array_consistent($aref, 'install_kernel');
   error(3, q|install_kernel is not set|) if ($aref->[0] eq "");
+  # File existence check
+  my $filepath = $hash->{lucie_wc} . '/kernels/' . $aref->[0];
+  error(2, q|install_kernel package file is not found| . qq|($filepath)|) if (! -f $filepath);
   return $aref->[0];
 }
 
@@ -272,7 +276,7 @@ sub main {
   check_arch(\@archs);
   my $linux_kernel = select_kernel($archs[0]);
   # Install Kernel(Lucie Kernel)
-  my $inst_kernel = check_instkernel(\@install_kernels);
+  my $inst_kernel = check_instkernel(\@install_kernels, $hash);
 
   # OUTPUT
   my $nl = node_lines(\@node_lines);
