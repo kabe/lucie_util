@@ -54,6 +54,8 @@ Usage :
     [--db-file DB_FILE] [--secret-file SECRET_FILE]
     [--ldb-wc LDB_WC] [--lucie-wc LUCIE_WC]
     [--exclude EXCLUDE1 EXCLUDE2 ...]
+    [--nocheck-secret-file]
+    [--nocheck-install-kernel]
 
   S_NODE :         NODE FROM (e.g. hongo100)
   E_NODE :         NODE TO   (e.g. hongo402)
@@ -199,11 +201,13 @@ sub check_arch {
 sub check_instkernel {
   my $aref = shift;
   my $hash = shift;
-  check_array_consistent($aref, 'install_kernel');
-  error(3, q|install_kernel is not set|) if ($aref->[0] eq "");
-  # File existence check
-  my $filepath = $hash->{lucie_wc} . '/kernels/' . $aref->[0];
-  error(2, q|install_kernel package file is not found| . qq|($filepath)|) if (! -f $filepath);
+  if ($hash->{check_instkernel}) {
+    check_array_consistent($aref, 'install_kernel');
+    error(3, q|install_kernel is not set|) if ($aref->[0] eq "");
+    # File existence check
+    my $filepath = $hash->{lucie_wc} . '/kernels/' . $aref->[0];
+    error(2, q|install_kernel package file is not found| . qq|($filepath)|) if (! -f $filepath);
+  }
   return $aref->[0];
 }
 
@@ -324,6 +328,7 @@ sub check_argv{
              # Rarely used options
              "secret-file:s" => \$_secretfile,
              "nocheck-secret-file!" => \$_nocheck_secret_file,
+             "nocheck-install-kernel!" => \$_nocheck_secret_file,
              "help!" => \$_help,
              "db-file:s" => \$_db_file,
              "debug!" => \$_debug);
@@ -345,6 +350,8 @@ sub check_argv{
   $a{secret_file} = $default_secret_file;
   $a{secret_file} = $_secretfile if(defined $_secretfile);
   check_secret_file($_nocheck_secret_file, $a{secret_file});
+  # Can diable InstKernel check
+  $a{check_instkernel} = ! $_nocheck_secret_file;
   # LDB working copy
   $a{ldb_wc} = $default_ldb_wc;
   $a{ldb_wc} = $_ldb_wc if (defined $_ldb_wc);
