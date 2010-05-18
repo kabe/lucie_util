@@ -29,7 +29,7 @@ my $default_remote_ldb_repository = q|svn+ssh://intri@www.intrigger.jp/home/intr
 ###################################################################
 
 # Templates
-my $cluster_select_sql = q|select name, install_mac, install_netmask, install_ipaddr, storage_conf_type, arch, install_kernel from host where name>="START_NODE" and name<="END_NODE"|;
+my $cluster_select_sql = q|select name, install_mac, install_netmask, install_ipaddr, storage_conf_type, arch from host where name>="START_NODE" and name<="END_NODE"|;
 my $line_tmpl = q|NODENAME --mac MAC --storage-conf STORAGE_CONF --ip-address IP_ADDRESS --netmask NETMASK|;
 my $glbl_tmpl = <<'END';
 #!/bin/sh
@@ -39,7 +39,6 @@ LINE_TMPLS
 --source-control REMOTE_LDB_REPOSITORY_TYPE \
 --ldb-repository REMOTE_LDB_REPOSITORY_LOCATION \
 --verbose \
--i INSTALL_KERNEL \
 -l LINUX_KERNEL \
 --secret SECRET_FILE
 END
@@ -55,7 +54,6 @@ Usage :
     [--ldb-wc LDB_WC] [--lucie-wc LUCIE_WC]
     [--exclude EXCLUDE1 EXCLUDE2 ...]
     [--nocheck-secret-file]
-    [--nocheck-install-kernel]
 
   S_NODE :         NODE FROM (e.g. hongo100)
   E_NODE :         NODE TO   (e.g. hongo402)
@@ -130,8 +128,8 @@ sub error{
 sub get_nodeinfo {
   my $line = shift;
   chomp $line;
-  my ($name, $inst_mac, $inst_netmask, $inst_addr, $storage_type, $arch, $install_kernel) = split(/\|/, $line);
-  return ($name, $inst_mac, $inst_netmask, $inst_addr, $storage_type, $arch, $install_kernel);
+  my ($name, $inst_mac, $inst_netmask, $inst_addr, $storage_type, $arch) = split(/\|/, $line);
+  return ($name, $inst_mac, $inst_netmask, $inst_addr, $storage_type, $arch);
 }
 
 # Check column fill except inst_mac column
@@ -198,19 +196,6 @@ sub check_arch {
   return 1;
 }
 
-sub check_instkernel {
-  my $aref = shift;
-  my $hash = shift;
-  if ($hash->{check_instkernel}) {
-    check_array_consistent($aref, 'install_kernel');
-    error(3, q|install_kernel is not set|) if ($aref->[0] eq "");
-    # File existence check
-    my $filepath = $hash->{lucie_wc} . '/kernels/' . $aref->[0];
-    error(2, q|install_kernel package file is not found| . qq|($filepath)|) if (! -f $filepath);
-  }
-  return $aref->[0];
-}
-
 sub check_secret_file {
   my $check_flg = shift;
   my $file = shift;
@@ -244,17 +229,16 @@ sub main {
   my @excluded = ();
   my @archs = ();
   my $handle = undef;
-  my @install_kernels;
   # Create SQL Command
   open $handle, sql_cmd($hash) . " | " or die "Can't open L4 pipe";
   for my $line (<$handle>) {
     my $tmp_tmpl = $line_tmpl;
-    my ($name, $inst_mac, $inst_netmask, $inst_addr, $storage_type, $arch, $install_kernel) = get_nodeinfo($line);
+    my ($name, $inst_mac, $inst_netmask, $inst_addr, $storage_type, $arch) = get_nodeinfo($line);
     if (grep /$name/, @{$hash->{EXCLUDE_LIST}}) {
       push @excluded, $name;
       next;
     }
-    check_nodeinfo($name, $inst_mac, $inst_netmask, $inst_addr, $storage_type, $arch, $install_kernel);
+    check_nodeinfo($name, $inst_mac, $inst_netmask, $inst_addr, $storage_type, $arch);
     if ($inst_mac eq '') {
       push @mac_unknown, $name;
       next;
@@ -263,8 +247,6 @@ sub main {
     my $storage_conf_path = check_storage($hash, $storage_type);
     # arch
     push @archs, $arch;
-    # install_kernel list
-    push @install_kernels, $install_kernel;
     # Replace Templates
     $tmp_tmpl =~ s/NODENAME/$name/;
     $tmp_tmpl =~ s/MAC/$inst_mac/;
@@ -279,8 +261,6 @@ sub main {
   # Check architechture
   check_arch(\@archs);
   my $linux_kernel = select_kernel($archs[0]);
-  # Install Kernel(Lucie Kernel)
-  my $inst_kernel = check_instkernel(\@install_kernels, $hash);
 
   # OUTPUT
   my $nl = node_lines(\@node_lines);
@@ -289,7 +269,6 @@ sub main {
   $glbl_tmpl =~ s/REMOTE_LDB_REPOSITORY_TYPE/$hash->{remote_ldb_repository_type}/;
   $glbl_tmpl =~ s/REMOTE_LDB_REPOSITORY_LOCATION/$hash->{remote_ldb_repository}/;
   $glbl_tmpl =~ s/SECRET_FILE/$hash->{secret_file}/;
-  $glbl_tmpl =~ s/INSTALL_KERNEL/$inst_kernel/;
   $glbl_tmpl =~ s/LINUX_KERNEL/$linux_kernel/;
   $glbl_tmpl =~ s/LUCIE_WC/$hash->{lucie_wc}/;
   print $glbl_tmpl;
@@ -328,7 +307,6 @@ sub check_argv{
              # Rarely used options
              "secret-file:s" => \$_secretfile,
              "nocheck-secret-file!" => \$_nocheck_secret_file,
-             "nocheck-install-kernel!" => \$_nocheck_secret_file,
              "help!" => \$_help,
              "db-file:s" => \$_db_file,
              "debug!" => \$_debug);
@@ -350,8 +328,6 @@ sub check_argv{
   $a{secret_file} = $default_secret_file;
   $a{secret_file} = $_secretfile if(defined $_secretfile);
   check_secret_file($_nocheck_secret_file, $a{secret_file});
-  # Can diable InstKernel check
-  $a{check_instkernel} = ! $_nocheck_secret_file;
   # LDB working copy
   $a{ldb_wc} = $default_ldb_wc;
   $a{ldb_wc} = $_ldb_wc if (defined $_ldb_wc);
