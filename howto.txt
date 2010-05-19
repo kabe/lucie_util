@@ -64,9 +64,9 @@ $ ./generate_install_script --start-node foo000 --end-node foo010 \
  --secret-file /path/to/secret.file
 ||<
 
-** パーティショニング時に break しない
+** パーティショニング前に break しない
 
-Lucie は node install-multi コマンドに --break オプションを渡すと Disk Partition の直前で一旦シェルに落ち, パーティショニング時にディスクがどのように認識されているかを確認することができます. 本スクリプトでは安全のためこの --break オプションをデフォルトで付加する仕様としています. 無効にしたスクリプトを生成したい場合には --nobreak オプションを指定してください.
+Lucie は node install-multi コマンドに --break オプションを渡すと Disk Partition の直前で一旦シェルに落ち, パーティショニング時にディスクがどのように認識されているかを確認することができます. 本スクリプトでは安全のため<span style="font-weight:bold;">1ノードのインストール時のみ</span>, この --break オプションをデフォルトで付加する仕様としています. 無効にしたスクリプトを生成したい場合には --nobreak オプションを指定してください.
 
 >|bash|
 $ ./generate_install_script --start-node foo000 --end-node foo010 --nobreak

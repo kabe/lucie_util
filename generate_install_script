@@ -60,6 +60,7 @@ Usage :
     [--ldb-wc LDB_WC] [--lucie-wc LUCIE_WC]
     [--exclude EXCLUDE1 EXCLUDE2 ...]
     [--nocheck-secret-file]
+    [--nobreak]
 
   S_NODE :         NODE FROM (e.g. hongo100)
   E_NODE :         NODE TO   (e.g. hongo402)
@@ -70,8 +71,10 @@ Usage :
   LDB_WC :         Location of LDB repository (default: \$HOME/L4)
 
   Options
-    --help  : Show this message
+    --help : Show this message
     --debug : Print debug message to STDERR
+    --nocheck-secret-file : Don't check an existence of secret file
+    --nobreak : Don't use --break option for Lucie
 
 Run Example :
  \$ $0 --start-node sheep00 --end-node sheep64 --exclude sheep02 sheep04 sheep07 sheep34 sheep46 sheep47
@@ -267,6 +270,9 @@ sub main {
   # Check architechture
   check_arch(\@archs);
   my $linux_kernel = select_kernel($archs[0]);
+
+  # Disable break flag if multiple nodes are specified
+  $hash->{break_option} = "" if (scalar(@node_lines) > 1);
 
   # OUTPUT
   my $nl = node_lines(\@node_lines);
