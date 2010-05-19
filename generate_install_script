@@ -34,12 +34,18 @@ my $line_tmpl = q|NODENAME --mac MAC --storage-conf STORAGE_CONF --ip-address IP
 my $glbl_tmpl = <<'END';
 #!/bin/sh
 
+# ********************************************************
+# **************** Lucie Installer Script ****************
+# *** Check if this script is correct on your own risk ***
+# ********************************************************
+
 LUCIE_WC/node install-multi \
 LINE_TMPLS
 --source-control REMOTE_LDB_REPOSITORY_TYPE \
 --ldb-repository REMOTE_LDB_REPOSITORY_LOCATION \
 --verbose \
 -l LINUX_KERNEL \
+BREAK_FLAG \
 --secret SECRET_FILE
 END
 
@@ -271,6 +277,7 @@ sub main {
   $glbl_tmpl =~ s/SECRET_FILE/$hash->{secret_file}/;
   $glbl_tmpl =~ s/LINUX_KERNEL/$linux_kernel/;
   $glbl_tmpl =~ s/LUCIE_WC/$hash->{lucie_wc}/;
+  $glbl_tmpl =~ s/BREAK_FLAG/$hash->{break_option}/;
   print $glbl_tmpl;
 
   if (@excluded != 0) {
@@ -292,6 +299,7 @@ sub check_argv{
   my $_help = undef;
   my $_debug = undef;
   my $_nocheck_secret_file = undef;
+  my $_nobreak = undef;
   my $_secretfile = undef;
   my $_ldb_wc = undef;
   my $_lucie_wc = undef;
@@ -307,6 +315,7 @@ sub check_argv{
              # Rarely used options
              "secret-file:s" => \$_secretfile,
              "nocheck-secret-file!" => \$_nocheck_secret_file,
+             "nobreak!" => \$_nobreak,
              "help!" => \$_help,
              "db-file:s" => \$_db_file,
              "debug!" => \$_debug);
@@ -337,6 +346,8 @@ sub check_argv{
   # Remote LDB repository
   $a{remote_ldb_repository} = $default_remote_ldb_repository;
   $a{remote_ldb_repository_type} = $default_remote_ldb_repository_type;
+  # break flag
+  $a{break_option} = $_nobreak? "" : "--break";
   # SQLite3 database file (if specified)
   my $db_file |= "";
   if ($db_file and ! -f $db_file) {
