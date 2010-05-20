@@ -45,6 +45,7 @@ LINE_TMPLS
 --ldb-repository REMOTE_LDB_REPOSITORY_LOCATION \
 --verbose \
 -l LINUX_KERNEL \
+--architecture ARCHITECTURE \
 BREAK_FLAG \
 --secret SECRET_FILE
 END
@@ -231,6 +232,20 @@ sub select_kernel {
   return $linux_kernel;
 }
 
+sub select_architecture ($){
+  my $arch = shift;
+  my $ret = undef;
+  if ($arch eq 'i686') {
+    $ret = 'i386';
+  }elsif ($arch eq 'x86_64') {
+    $ret = 'amd64';
+  }
+  if (!defined $ret) {
+    error(3, "arch is not i686 or amd64");
+  }
+  return $ret;
+}
+
 sub main {
   my $hash = shift;
   my @node_lines = ();
@@ -270,6 +285,7 @@ sub main {
   # Check architechture
   check_arch(\@archs);
   my $linux_kernel = select_kernel($archs[0]);
+  my $architecture = select_architecture($archs[0]);
 
   # Disable break flag if multiple nodes are specified
   $hash->{break_option} = "" if (scalar(@node_lines) > 1);
@@ -284,6 +300,7 @@ sub main {
   $glbl_tmpl =~ s/LINUX_KERNEL/$linux_kernel/;
   $glbl_tmpl =~ s/LUCIE_WC/$hash->{lucie_wc}/;
   $glbl_tmpl =~ s/BREAK_FLAG/$hash->{break_option}/;
+  $glbl_tmpl =~ s/ARCHITECTURE/$architecture/;
   print $glbl_tmpl;
 
   if (@excluded != 0) {
