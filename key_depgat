@@ -1,0 +1,170 @@
+#!/usr/bin/env python
+
+import sys
+import os
+import optparse
+import getpass
+import os.path
+import subprocess
+import re
+
+class KeyDeployGather(object) :
+    """
+    """
+
+    def __init__(self, ) :
+        """
+        Initialize an object.
+        """
+        self.password = None
+        self.id_file = None
+        self.verbose = False
+        self.login_user = "root"
+        self.key_dir = "key_dir"
+        self.targets = []
+
+    def exec_cmd(self, cmd, input=None) :
+        """
+        Execute a command.
+        
+        Arguments:
+        - `cmd`: command with list or tuple
+        """
+        print " ".join(cmd)
+        if self.real_exec :
+            if input is not None :
+                sp = subprocess.Popen(cmd, shell=True, stdin=subprocess.PIPE)
+                sp.stdin.write(input)
+                sp.wait()
+            else :
+                sp = subprocess.Popen(cmd, shell=True, )
+                sp.wait()
+        else :
+            pass
+    
+    def debug(self, str) :
+        """
+        Print string to stderr.
+        
+        Arguments:
+        - `str`:
+        """
+        print >>sys.stderr, str
+    
+    def debug_info(self, ) :
+        """
+        Print debug information.
+        """
+        self.debug("Debug information")
+        self.debug("Password : %s" % (self.password))
+        self.debug("Identity file : %s" % (self.id_file))
+        self.debug("Targets : %s" % (" ".join(self.targets)))
+    
+    def get_password(self, ) :
+        """
+        Have the user input password from command line.
+        """
+        password = getpass.getpass(prompt="Password for logging in : ")
+        self.password = password
+
+    def get_id(self, ) :
+        """
+        Determine which private key to use.
+        key file location is stored self.id_file
+        """
+        if self.id_file is not None : # Identity file is already specified
+            os.stat(self.id_file) # check file existence
+            return
+        # Configure Key candidates under $HOME
+        key_locations = [".ssh/id_rsa", ".ssh/id_dsa", "lucie/.ssh/id_rsa", "lucie/.ssh/id_dsa"]
+        key_candidates = [os.path.join(os.getenv("HOME"), keysuffix) for keysuffix in key_locations]
+        id_file = [key for key in key_candidates if os.access(key, os.R_OK)][0]
+        self.id_file = id_file
+
+    def getoptions(self, ) :
+        """
+        Parse command line options.
+        """
+        parser = optparse.OptionParser()
+        parser.add_option("-i", "--identity", dest="id_file",
+                          help="SSH identity file", metavar="FILE")
+        parser.add_option("-v", "--verbose", dest="verbose",
+                          action="store_true", default=False, help="Print debug info")
+        parser.add_option("-k", "--key-dir", dest="key_dir",
+                          help="Directory to store key under DIR", metavar="DIR")
+        parser.add_option("-d", "--dry-run",
+                          action="store_false", dest="real_exec", default=True,
+                          help="don't execute real commands")
+        (options, args) = parser.parse_args()
+        self.id_file = options.id_file
+        self.real_exec = options.real_exec
+        self.targets = expand_cluster(" ".join(args))
+        self.verbose = verbose
+        self.options, self.args = options, args
+    
+    def copy_id(self, ) :
+        """
+        Add a private key to targets.
+        """
+        targets = self.targets
+        cmds = [("ssh-copy-id", "-i", self.id_file, "%s@%s" % (self.login_user, target)) for target in targets]
+        [self.exec_cmd(cmd, input=self.password) for cmd in cmds]
+    
+    def gather_hostkeys(self, ) :
+        """
+        Copy host keys from targets and chmod appropriately.
+        """
+        targets = self.targets
+        files = ["ssh_host_rsa_key", "ssh_host_rsa_key.pub", "ssh_host_dsa_key", "ssh_host_dsa_key.pub"]
+        # Gather
+        cmds = [("scp", "-i", self.id_file, "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
+                 "%s@%s:%s" % (self.login_user, target, os.path.join("/etc/ssh", file)),
+                 os.path.join(self.key_dir, target, file))
+                for target in targets for file in files]
+        [self.exec_cmd(cmd) for cmd in cmds]
+        # Change mode
+        cmds = [("chmod", "0600", os.path.join(self.key_dir, target, file), )
+                for target in targets for file in files]
+        [self.exec_cmd(cmd) for cmd in cmds]
+
+def expand_cluster(str) :
+    """
+    Expand cluster strings.
+   
+    >> expand_cluster("hongo-charlie hongo[[100-103]] hongo[[200-204]]")
+    ['hongo-charlie', 'hongo100', 'hongo101', 'hongo102', 'hongo103', 'hongo200', 'hongo201', 'hongo202', 'hongo203', 'hongo204']
+    
+    Arguments:
+    - `str`:
+    """
+    _nodes = str.split()
+    list = []
+    pat = re.compile(r"(.+)\[\[(.+)-(.+)\]\]")
+    for nodes in _nodes :
+        match = pat.search(nodes)
+        if match is None :
+            list.append(nodes)
+            continue
+        prefix = match.group(1)
+        h = int(match.group(2))
+        t = int(match.group(3))
+        d = len(match.group(2))
+        for x in xrange(h, t + 1) :
+            node = "%s%0*d" % (prefix, d, x)
+            list.append(node)
+    return list
+
+def main() :
+    """
+    Main function.
+    """
+    kdg = KeyDeployGather()
+    kdg.getoptions()
+    kdg.get_password()
+    kdg.get_id()
+    if kdg.verbose : kdg.debug_info()
+    kdg.copy_id()
+    kdg.gather_hostkeys()
+
+if __name__ == '__main__' :
+    main()
