@@ -235,7 +235,7 @@ sub configure($\%) {
   # Target nodes
   my $nodelist = expand_cluster($href->{nodelist});
   # Exclude
-  print $href->{exclude};
+  #print $href->{exclude};
   my @a = ();
   for my $n (@$nodelist) {
     push @a, $n if !grep /$n/, @{expand_cluster($href->{exclude})};
@@ -502,6 +502,7 @@ sub is_array_consistent (@) {
 # GXP-like node expansion
 sub expand_cluster($) {
   my $arg = shift;
+  return [] if !defined $arg;
   my @_nodes = split /\s+/, $arg;
   my @list = ();
   for my $nodes (@_nodes) {
