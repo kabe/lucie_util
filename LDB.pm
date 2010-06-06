@@ -448,7 +448,7 @@ sub architecture ($$) {
   my $self = shift;
   my $arch = shift;
   my $arch_hash = {
-                   x86_64 => "x86_64",
+                   x86_64 => "amd64",
                    i686 => "i386",
                   };
   return $arch_hash->{$arch};
