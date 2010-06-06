@@ -329,7 +329,7 @@ sub generate($) {
   $tp->{REMOTE_LDB_REPOSITORY_TYPE} = $self->{remote_ldb_type};
   $tp->{REMOTE_LDB_REPOSITORY_LOCATION} = $self->{remote_ldb_location};
   $tp->{BREAK_FLAG} = $self->{break} ? q|--break| : q||;
-  $tp->{ARCHITECTURE} = $self->{consistent}->{arch};
+  $tp->{ARCHITECTURE} = $self->architecture($self->{consistent}->{arch});
   $tp->{LINUX_KERNEL} = $self->install_kernel($self->{consistent}->{arch});
   while ($tmpl =~ /\${([A-Z_]+?)}/) {
     my $t = $1;
@@ -441,6 +441,17 @@ sub create_sql_cmd($$) {
   $ldb_cmd .= ' sql ';
   $ldb_cmd .= qq|'$sql'|;
   return $ldb_cmd;
+}
+
+# Select appropriate architecture name from the architecture.
+sub architecture ($$) {
+  my $self = shift;
+  my $arch = shift;
+  my $arch_hash = {
+                   x86_64 => "x86_64",
+                   i686 => "i386",
+                  };
+  return $arch_hash->{$arch};
 }
 
 # Select appropriate Linux kernel package name from the architecture.
