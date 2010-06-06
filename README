@@ -4,7 +4,7 @@ Linux 自動インストールツール [http://lucie.is.titech.ac.jp:title=Luci
 
 これ単独では何の役にも立ちません.
 
-このレポジトリに含まれている generate_install_script は Lucie を動作させる際のコマンドラインオプションを生成します.
+このレポジトリに含まれている geninst は Lucie を動作させる際のコマンドラインオプションを生成します.
 
 * ドキュメントの読み方について
 
