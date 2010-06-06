@@ -17,6 +17,80 @@ $ git clone git://github.com/kabe/lucie_util
 ターミナルで
 
 >|bash|
+lucie_util $ ./geninst
+||<
+
+とすると, 使い方が表示されます. バージョンによって使い方は異なるので, その都度確認してください.
+
+ここではバージョン3.0における使い方を記述します.
+
+** 基本形
+>|bash|
+$ ./geninst foo[[000-010]]
+||<
+とすると, [http://www.logos.ic.i.u-tokyo.ac.jp/gxp/:title=GXP] のような補完により foo000 から foo010 の計算機をインストールするための Lucie コマンドが生成されます. これにあたって必要となる各種情報は LDB/host.db から取得しています.
+
+** LDB の所在を指定する
+情報は host.db から取得しているため, プログラムが host.db を見つけることができなければエラーとなります. デフォルトで $HOME/L4 に LDB がチェックアウトされている(したがって, $HOME/L4/host.db が存在する)ことを仮定しています. しかし, そうではない場合は --ldb-wc オプションによってLDB のワーキングコピー場所を指定することになります.
+>|bash|
+$ ./geninst foo[[000-010]] --ldb-wc $HOME/path/to/L4
+||<
+
+** データベースファイルだけ別に指定する
+LDB にはパーティション情報を規定する storage configuration files が入っているので必要なのですが, 各ホストに関する情報は必ずしも host.db から取得しなくても構いません. 場合によっては host.db ではない別のファイルからデータを取得したい場合もあるということで, このデータベースのみ --db-file オプションにより別途指定できます.
+
+>|bash|
+$ ./geninst foo[[000-010]] --ldb-wc $HOME/path/to/L4 --db-file /path/to/hoge.db
+||<
+
+** インストール対象から外したい計算機を指定する
+
+通常,指定した全ての計算機に対するコマンドを生成しますが, そのうち故障などの事情でインストールしたくない計算機がある場合のため, --exclude オプションにより一部計算機を除外することができます.
+
+例)foo004 と foo006 をインストール対象から除外する
+>|bash|
+$ ./geninst foo[[000-010]] --exclude foo004 foo006
+||<
+
+** 秘密ファイルを指定する
+
+計算機のインストールが終わった後, Linux の root パスワード(および, 存在すれば IPMI)を設定するために暗号化された秘密ファイルが用いられます. これは $HOME/lucie/env.enc というファイル名であると仮定されています. プログラム実行時にこのファイルを見つけられなければエラーメッセージが表示されます. --secret オプションによってファイルの位置を指定することができます(絶対パスで指定してください). また, --nocheck-secret-file オプションを付けた場合はチェックが行われません.
+
+>|bash|
+$ ./geninst foo[[000-010]] --secret-file /path/to/secret.file
+||<
+
+** パーティショニング前に break しない
+
+Lucie は node install-multi コマンドに --break オプションを渡すと Disk Partition の直前で一旦シェルに落ち, パーティショニング時にディスクがどのように認識されているかを確認することができます. 本スクリプトでは安全のため<span style="font-weight:bold;">1ノードのインストール時のみ</span>, この --break オプションをデフォルトで付加する仕様としています. 無効にしたスクリプトを生成したい場合には --nobreak オプションを指定してください.
+
+>|bash|
+$ ./geninst foo000 --nobreak
+||<
+
+** パーティショニング時に既存のパーティション情報を無視し, パーティションを切り直す
+
+既存のパーティション情報とストレージ設定ファイルが一致しない場合, Lucie はエラー終了します. パーティション情報を消去し, 新たにパーティションを切り直したい場合, データベース内の storage_conf_type ファイルに _nopreserve サフィックスを付加したファイルを用意し, --nopreserve オプションを追加してください.
+
+>|bash|
+$ ./geninst foo[[000-010]] --nopreserve
+||<
+
+* バグ
+
+現在 --exclude オプションが正しく動作していません.
+
+* API
+
+本スクリプト中ではデータベースから取得した情報をオブジェクトとして利用するための API として LDB.pm を用意し, 利用しています. ドキュメントは LDB.pm に POD で記述してあります([http://www.logos.ic.i.u-tokyo.ac.jp/~kabe/linux/ldb.xhtml:title=HTML版]).
+
+* 古い使い方
+
+以下のものは古いスクリプトです. 以後更新されることはありません.
+
+ターミナルで
+
+>|bash|
 lucie_util $ ./generate_install_script
 ||<
 
@@ -71,4 +145,3 @@ Lucie は node install-multi コマンドに --break オプションを渡すと
 >|bash|
 $ ./generate_install_script --start-node foo000 --end-node foo010 --nobreak
 ||<
-
