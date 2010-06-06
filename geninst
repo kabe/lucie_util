@@ -1,0 +1,153 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Pod::Usage;
+use Getopt::Long;
+
+require 5.005;
+
+use LDB;
+
+$ENV{LC_ALL} = "C";
+
+sub main {
+  my $ldb = new LDB;
+  my $status;
+  my $config = optparse();
+  #print "\@ARGV = @ARGV", $/;
+  $status = $ldb->configure($config);
+  if ($status->isError) {
+    print STDERR "Error: ", $status->message, $/;
+    exit(2);
+  }
+  $ldb->debug if ($ldb->isDebug);
+  $status = $ldb->getattr;
+  if ($status->isError) {
+    print STDERR "Error: ", $status->message, $/;
+    exit(2);
+  }
+  $status = $ldb->getinfo;
+  if ($status->isError) {
+    print STDERR "Error: ", $status->message, $/;
+    exit(2);
+  }
+  $status = $ldb->check_consistency;
+  if ($status->isError) {
+    print STDERR "Error: ", $status->message, $/;
+    exit(2);
+  }
+  $status = $ldb->generate;
+  if ($status->isError) {
+    print STDERR "Error: ", $status->message, $/;
+    exit(2);
+  }
+  print $ldb->command;
+}
+
+sub optparse{
+  my $parser = new Getopt::Long::Parser;
+  my %config = ();
+  $parser->getoptions(
+                      \%config,
+                      # Range-style specification
+                      # Sometimes Used options
+                      "exclude:s{,}",
+                      "ldb-wc:s",
+                      "lucie-wc:s",
+                      "nopreserve!",
+                      # Rarely used options
+                      "secret-file:s",
+                      "nocheck-secret-file!",
+                      "nobreak!",
+                      "help|h!" => "help",
+                      "db-file:s",
+                      "verbose|debug!" => "verbose",
+                     );
+  #TODO: fix exclude option
+  #print Dumper(%config);
+  # Rest of options = ARGV, so join them with whitespaces.
+  $config{nodelist} = join " ", @ARGV;
+  # Help MSG
+  pod2usage(1) if $config{help};
+  pod2usage({-msg=>"Target not specified", -verbose=>2}) if !scalar(@ARGV);
+
+  return \%config;
+}
+
+main();
+
+__END__
+
+=head1 NAME
+
+geninst -- Generate installation script for Lucie
+
+=head1 SYNOPSIS
+
+geninst [options] nodes
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<--help>
+
+Print this message
+
+=item B<--nobreak>
+
+Do not break before storage configuration even for a single target node
+
+=item B<--exclude>
+
+Specify nodes that you want to exclude from targets
+Example: C<--exclude sheep02 sheep[[46-48]]>
+
+=item B<--ldb-wc>
+
+Specify the location of LDB working copy instead of default place
+
+=item B<--secret-file>
+
+Specify the location of secret file instead of default place
+
+=item B<--lucie-wc>
+
+Specify the location of Lucie working copy instead of default place
+
+=item B<--nopreserve>
+
+Do not preserve partitions (You need to prepare storage configuration files with suffix "_nopreserve" when you use this option)
+
+=item B<--db-file>
+
+Use another LDB database file(SQLite3) instead of default one
+
+=item B<--verbose, --debug>
+
+Verbose output
+
+=item B<--nocheck-secret-file>
+
+Do not check existence of the secret file
+
+=back
+
+=head1 USAGE EXAMPLE
+
+    geninst hongo[[100-113]] hongo[[200-208]] hongo300 hongo301 hongo[[400-409]]
+    geninst --lucie-wc $HOME/git/lucie --ldb-wc $HOME/git/L4 sheep[[00-05]] --exclude sheep02 sheep04
+
+=head1 DOCUMENTATION
+
+Japanese documentation available at http://wikihub.org/wiki/lucie_util
+
+To read LDB documentation, use C<perldoc LDB>.
+
+=head1 BUGS
+
+L</--exclude> option doesn't work.
+
+=cut
+
