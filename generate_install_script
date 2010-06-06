@@ -253,6 +253,19 @@ sub main {
   my @excluded = ();
   my @archs = ();
   my $handle = undef;
+  # Obsolete caution
+  print STDERR << "EOD";
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!! ATTENTION !!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+    This script is obsolete and no longer maintained.
+    Please use geninst instead.
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!! ATTENTION !!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+EOD
   # Create SQL Command
   open $handle, sql_cmd($hash) . " | " or die "Can't open L4 pipe";
   for my $line (<$handle>) {
