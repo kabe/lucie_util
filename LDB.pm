@@ -140,7 +140,7 @@ ${LINE_TMPLS}
 --source-control ${REMOTE_LDB_REPOSITORY_TYPE} \
 --ldb-repository ${REMOTE_LDB_REPOSITORY_LOCATION} \
 --verbose \
---linux-kernel ${LINUX_KERNEL} \
+--linux-image ${LINUX_KERNEL} \
 --architecture ${ARCHITECTURE} \
 ${BREAK_FLAG} \
 --secret ${SECRET_FILE}
