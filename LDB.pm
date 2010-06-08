@@ -168,7 +168,8 @@ sub new($) {
   my $class = shift;
   my $self = {};
   $self->{nodes} = {};
-  my $verbose = 0; # Verbose level
+  $self->{verbose} = 0; # Verbose level
+  $self->{status} = {};
   return bless $self, $class;
 }
 
@@ -184,9 +185,11 @@ This returns L</Status> object.
 sub getattr($) {
   my $self = shift;
   my $retval;
+  return Status->new(0, "Not configured yet") if !$self->{status}->{configure};
   $retval = exec_cmd(join " ", $self->ldb_cmd, "attrs");
   return $retval if $retval->isError;
   $self->{attrs} = $retval->message;
+  $self->{status}->{getattr} = 1;
   return Status->new(1);
 }
 
@@ -203,6 +206,7 @@ This returns L</Status> object.
 sub getinfo($) {
   my $self = shift;
   my $status;
+  return Status->new(0, "No getattr") if !$self->{status}->{getattr};
   foreach my $node ($self->nodes) {
     my $sql = $self->node_sql_line($node);
     my $result = $self->exec_sql($sql);
@@ -210,6 +214,7 @@ sub getinfo($) {
     my $n = Node->new({attrs=>$self->attrs, info=>$result->message});
     $self->add_node($n);
   }
+  $self->{status}->{getinfo} = 1;
   return Status->new(1);
 }
 
@@ -274,6 +279,7 @@ sub configure($\%) {
     return $status if $status->isError;
   }
   #print Data::Dumper->Dump([$href]) if $self->isDebug;
+  $self->{status}->{configure} = 1;
   return Status->new(1);
 }
 
