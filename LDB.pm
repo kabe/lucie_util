@@ -135,7 +135,7 @@ my $global_tmpl = <<'END';
 # *** Check if this script is correct on your own risk ***
 # ********************************************************
 
-${LUCIE_WC}/node install-multi \
+${LUCIE_WC}/node install \
 ${LINE_TMPLS}
 --source-control ${REMOTE_LDB_REPOSITORY_TYPE} \
 --ldb-repository ${REMOTE_LDB_REPOSITORY_LOCATION} \
