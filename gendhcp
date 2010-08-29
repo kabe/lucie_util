@@ -1,0 +1,137 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use Pod::Usage;
+use Getopt::Long;
+
+require 5.005;
+
+use LDB;
+
+$ENV{LC_ALL} = "C";
+
+sub main {
+  my $ldb = new LDB;
+  my $status;
+  my $config = optparse();
+  #print "\@ARGV = @ARGV", $/;
+  # Unnecessary check
+  $config->{"nocheck-secret-file"} = 1;
+  $config->{"nocheck-lucie-wc"} = 1;
+  $status = $ldb->configure($config);
+  if ($status->isError) {
+    print STDERR "Error: ", $status->message, $/;
+    exit(2);
+  }
+  $ldb->debug if ($ldb->isDebug);
+  $status = $ldb->getattr;
+  if ($status->isError) {
+    print STDERR "Error: ", $status->message, $/;
+    exit(2);
+  }
+  $status = $ldb->getinfo;
+  if ($status->isError) {
+    print STDERR "Error: ", $status->message, $/;
+    exit(2);
+  }
+  $status = $ldb->check_consistency;
+  if ($status->isError) {
+    print STDERR "Error: ", $status->message, $/;
+    exit(2);
+  }
+  $status = $ldb->gen_dhcp;
+  if ($status->isError) {
+    print STDERR "Error: ", $status->message, $/;
+    exit(2);
+  }
+  print $ldb->command;
+}
+
+sub optparse{
+  my $parser = new Getopt::Long::Parser;
+  my %config = ();
+  my @exclude = ();
+  $parser->getoptions(
+                      \%config,
+                      # Range-style specification
+                      # Sometimes Used options
+                      "exclude:s{,}" => \@exclude,
+                      "ldb-wc:s",
+                      # Rarely used options
+                      "help|h!" => "help",
+                      "db-file:s",
+                      "use-pxefile!" => "use-pxefile",
+                      "verbose|debug!" => "verbose",
+                     );
+  # Excludes
+  $config{exclude} = join " ", @exclude;
+  # Rest of options = ARGV, so join them with whitespaces.
+  $config{nodelist} = join " ", @ARGV;
+  #print Data::Dumper->Dump([\%config, \@ARGV, \@exclude]);
+  # Help MSG
+  pod2usage({-verbose=>2}) if $config{help};
+  pod2usage({-msg=>"Target not specified", -verbose=>1}) if !scalar(@ARGV);
+  return \%config;
+}
+
+main();
+
+__END__
+
+=head1 NAME
+
+gendhcp -- Generate DHCP configuration file for a cluster.
+
+=head1 SYNOPSIS
+
+gendhcp [options] nodes
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<--help>
+
+Print this message
+
+=item B<--exclude>
+
+Specify nodes that you want to exclude from targets
+Example: C<--exclude sheep02 sheep[[46-48]]>
+
+=item B<--ldb-wc>
+
+Specify the location of LDB working copy instead of default place
+
+=item B<--db-file>
+
+Use another LDB database file(SQLite3) instead of default one
+
+=item B<--use-pxefile>
+
+Use PXE config file "pxelinux.0".
+
+=item B<--verbose, --debug>
+
+Verbose output
+
+=back
+
+=head1 USAGE EXAMPLE
+
+    gendhcp hongo[[100-113]] hongo[[200-208]] hongo300 hongo301 hongo[[400-409]]
+    gendhcp --ldb-wc $HOME/git/L4 sheep[[00-05]] --exclude sheep02 sheep04
+
+=head1 DOCUMENTATION
+
+Japanese documentation available at http://wikihub.org/wiki/lucie_util
+
+To read LDB documentation, use C<perldoc LDB>.
+
+=head1 BUGS
+
+There is no bug to note.
+
+=cut
+

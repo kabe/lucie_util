@@ -146,6 +146,30 @@ ${BREAK_FLAG} \
 --secret ${SECRET_FILE}
 END
 
+#------------------------------
+#        DHCP templates
+#------------------------------
+our $dhcp_global_tmpl = <<'END';
+option domain-name "${DOMAIN_NAME}";
+
+subnet ${SUBNET_ADDR} netmask ${SUBNET_MASK} {
+  option broadcast-address ${BCAST_ADDR};
+  deny unknown-clients;
+
+  next-server ${LUCY_IP};
+  ${DHCP_PXE_CONFIG}
+
+${HOSTS_CONFIG}
+}
+END
+our $dhcp_entry_tmpl = <<'END';
+  host ${HOSTNAME} {
+    hardware ethernet ${PHYSICAL_ADDR};
+    fixed-address ${IP_ADDR};
+  }
+END
+our $dhcp_pxe_config = q|filename "pxelinux.0"|;
+
 
 #------------------------------
 #        Public Methods
@@ -276,7 +300,7 @@ sub configure($\%) {
   # Lucie working copy location
   $self->{lucie_wc} = $href->{"lucie-wc"} || $defaults->{"lucie_wc"};
   $self->{lucie_wc} = templatize($self->{lucie_wc});
-  $status = check_directory_existence($self->{lucie_wc});
+  $status = check_directory_existence($self->{lucie_wc}) unless defined $href->{"nocheck-lucie-wc"};
   return $status if $status->isError;
   # LDB database file
   $self->{db_file} = $href->{"db-file"} || undef;
@@ -286,6 +310,8 @@ sub configure($\%) {
     $status = check_executable_existence($self->{lucie_wc} . 'bin/ldb');
     return $status if $status->isError;
   }
+  # PXE file usage in DHCP
+  $self->{pxe_config} = $href->{"use-pxefile"} ? $dhcp_pxe_config : "";
   #print Data::Dumper->Dump([$href]) if $self->isDebug;
   $self->{status}->{configure} = 1;
   return Status->new(1);
@@ -354,6 +380,56 @@ sub generate($) {
     $tmpl =~ s/\${$t}/$replacement/;
   }
   $self->{command} = $tmpl;
+  return Status->new(1);
+}
+
+=item gen_dhcp()
+
+Generates DHCP configuration file. You can get Lucie command by
+L</command> after calling this method.
+
+This returns L</Status> object.
+
+=cut
+
+sub gen_dhcp($) {
+  my $self = shift;
+  # each-node conf
+  my @conf_node = ();
+  my $first_node = undef;
+  for my $name (sort keys %{$self->nodehash}) {
+    my $node = $self->nodehash->{$name};
+    $first_node = $node unless defined $first_node;
+    my $tmpl = $dhcp_entry_tmpl;
+    my %repl_hash = (
+                     HOSTNAME => $node->get("name"),
+                     PHYSICAL_ADDR => $node->get("install_mac"),
+                     IP_ADDR => $node->get("install_ipaddr"),
+                    );
+    while (my ($key, $value) = each %repl_hash) {
+      $tmpl =~ s/\${$key}/$value/;
+    }
+    push @conf_node, $tmpl;
+  }
+  # global conf
+  my $glbl_tmpl = $dhcp_global_tmpl;
+  my $lucy_name = $first_node->get("lucy");
+  return Status->new(0, "Can't find Lucy") if !defined $lucy_name;
+  my $lucy = $self->getinfo($lucy_name);
+  return $lucy if $lucy->isError;
+  my %repl_hash = (
+                   DOMAIN_NAME => $first_node->get("dnsdomain"),
+                   SUBNET_ADDR => $first_node->get("mgmt_network"),
+                   SUBNET_MASK => $first_node->get("mgmt_netmask"),
+                   BCAST_ADDR => $first_node->get("mgmt_broadcast"),
+                   LUCY_IP => $lucy->message->get("mgmt_address"),
+                   HOSTS_CONFIG => join("", @conf_node),
+                   DHCP_PXE_CONFIG => $self->{pxe_config},
+                  );
+  while (my ($key, $value) = each %repl_hash) {
+    $glbl_tmpl =~ s/\${$key}/$value/;
+  }
+  $self->{command} = $glbl_tmpl;
   return Status->new(1);
 }
 
