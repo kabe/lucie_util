@@ -205,8 +205,16 @@ This returns L</Status> object.
 
 sub getinfo($) {
   my $self = shift;
+  my $node = shift || undef; # optional
   my $status;
   return Status->new(0, "No getattr") if !$self->{status}->{getattr};
+  if (defined $node) {
+    my $sql = $self->node_sql_line($node);
+    my $result = $self->exec_sql($sql);
+    return $result if ($result->isError);
+    my $n = Node->new({attrs=>$self->attrs, info=>$result->message});
+    return Status->new(1, $n);
+  }
   foreach my $node ($self->nodes) {
     my $sql = $self->node_sql_line($node);
     my $result = $self->exec_sql($sql);
@@ -215,7 +223,7 @@ sub getinfo($) {
     $self->add_node($n);
   }
   $self->{status}->{getinfo} = 1;
-  return Status->new(1);
+  return Status->new(1, "getinfo OK");
 }
 
 =item configure(\%hash)
@@ -615,6 +623,7 @@ Example:
 sub get($$) {
   my $self = shift;
   my $attr = shift;
+  return undef if !exists ($self->{info}->{$attr});
   return $self->{info}->{$attr};
 }
 
