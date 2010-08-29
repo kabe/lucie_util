@@ -293,7 +293,9 @@ sub configure($\%) {
 
 =item check_consistency()
 
-Check all of values are consistent. it checks only arch for now.
+Check all of values are consistent.
+
+If you need to check additional values, add the column name to @target.
 
 This returns L</Status> object.
 
@@ -302,7 +304,7 @@ This returns L</Status> object.
 sub check_consistency {
   my $self = shift;
   my $status;
-  my @target = qw(arch);
+  my @target = qw(arch dnsdomain);
   for my $t (@target) {
     my @params = map {$self->{nodes}->{$_}->get($t)} $self->nodes;
     $status = is_array_consistent(@params);
