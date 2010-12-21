@@ -31,7 +31,7 @@ variable $HOME.
 
 I<Local> location of Lucie working copy.
 
-Default is F<$HOME/lucie>.
+Default is F<$HOME/lucie_github>.
 
 =item B<ldb_wc>
 
@@ -43,7 +43,7 @@ Default is F<$HOME/L4>.
 
 I<Local> location of secret file which contains passwords.
 
-Default is F<$HOME/lucie/env.enc>.
+Default is F<$HOME/lucie_github/env.enc>.
 
 =item B<remote_ldb_repository_type>
 
@@ -63,9 +63,9 @@ Default is F<svn+ssh://intri@www.intrigger.jp/home/intri/SVN/L4>.
 =cut
 
 my $defaults = {
-                lucie_wc => q|${HOME}/lucie|,
+                lucie_wc => q|${HOME}/lucie_github/|,
                 ldb_wc =>   q|${HOME}/L4|,
-                secret_file => q|${HOME}/lucie/env.enc|,
+                secret_file => q|${HOME}/lucie_github/env.enc|,
                 remote_ldb_repository_type => q|Subversion|,
                 remote_ldb_repository => q|svn+ssh://intri@www.intrigger.jp/home/intri/SVN/L4|,
                };
@@ -649,7 +649,7 @@ sub lucie_line($$) {
     my $t = $1;
     my $replacement = $self->get($t);
     if ($t eq 'storage_conf_type') {
-      $replacement = $opt->{ldb_wc} . "/lucie/storage/" . $replacement;
+      $replacement = $opt->{ldb_wc} . "/lucie_github/storage/" . $replacement;
       $replacement .= "_nopreserve" if $opt->{nopreserve};
       return Status->new(0, "Storage conf file $replacement does not exist")
         if (!-f $replacement);
