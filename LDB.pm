@@ -736,7 +736,7 @@ sub lucie_line($$) {
     my $t = $1;
     my $replacement = $self->get($t);
     if ($t eq 'storage_conf_type') {
-      $replacement = $opt->{ldb_wc} . "/lucie_github/storage/" . $replacement;
+      $replacement = $opt->{ldb_wc} . "/lucie/storage/" . $replacement;
       $replacement .= "_nopreserve" if $opt->{nopreserve};
       return Status->new(0, "Storage conf file $replacement does not exist")
         if (!-f $replacement);
