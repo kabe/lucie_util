@@ -49,6 +49,14 @@ sub optparse{
   my $parser = new Getopt::Long::Parser;
   my %config = ();
   my @exclude = ();
+  # Cheat Getopt::Long module: insert space before "--" of "--append"
+  # otherwise this module thinks it as an unknown option.
+  for my $i (0 .. $#ARGV) {
+    if ($ARGV[$i] =~ m/^--append/) {
+      $ARGV[$i + 1] = " " . $ARGV[$i + 1];
+    }
+  }
+  # Parser definition
   $parser->getoptions(
                       \%config,
                       # Range-style specification
@@ -62,7 +70,8 @@ sub optparse{
                       "nocheck-secret-file!",
                       "nobreak!",
                       "help|h!" => "help",
-                      "db-file:s",
+                      "db-file:s{1,1}",
+                      "append:s",
                       "verbose|debug!" => "verbose",
                      );
   # Excludes

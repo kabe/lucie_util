@@ -143,6 +143,7 @@ ${LINE_TMPLS}
 --linux-image ${LINUX_KERNEL} \
 --architecture ${ARCHITECTURE} \
 ${BREAK_FLAG} \
+${APPEND_CMD} \
 --secret ${SECRET_FILE}
 END
 
@@ -312,6 +313,8 @@ sub configure($\%) {
   }
   # PXE file usage in DHCP
   $self->{pxe_config} = $href->{"use-pxefile"} ? $dhcp_pxe_config : "";
+  # Append string
+  $self->{append} = $href->{"append"} || "";
   #print Data::Dumper->Dump([$href]) if $self->isDebug;
   $self->{status}->{configure} = 1;
   return Status->new(1);
@@ -373,6 +376,7 @@ sub generate($) {
   $tp->{BREAK_FLAG} = $self->{break} ? q|--break| : q||;
   $tp->{ARCHITECTURE} = $self->architecture($self->{consistent}->{arch});
   $tp->{LINUX_KERNEL} = $self->install_kernel($self->{consistent}->{arch});
+  $tp->{APPEND_CMD} = $self->{append};
   while ($tmpl =~ /\${([A-Z_]+?)}/) {
     my $t = $1;
     my $replacement = $tp->{$t};
