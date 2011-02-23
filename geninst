@@ -134,6 +134,10 @@ Do not preserve partitions (You need to prepare storage configuration files with
 
 Use another LDB database file(SQLite3) instead of default one
 
+=item B<--append>
+
+Can specify an option(s) to append to the command for Lucie
+
 =item B<--verbose, --debug>
 
 Verbose output
