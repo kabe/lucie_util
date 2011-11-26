@@ -65,6 +65,7 @@ sub optparse{
                       "ldb-wc:s",
                       "lucie-wc:s",
                       "nopreserve!",
+                      "suite:s",
                       # Rarely used options
                       "secret-file:s",
                       "nocheck-secret-file!",
@@ -133,6 +134,10 @@ Do not preserve partitions (You need to prepare storage configuration files with
 =item B<--db-file>
 
 Use another LDB database file(SQLite3) instead of default one
+
+=item B<--suite>
+
+Can specify a suite (here Debian codename): e.g. lenny, squeeze, unstable, ...
 
 =item B<--append>
 

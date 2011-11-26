@@ -60,6 +60,14 @@ $ ./geninst foo[[000-010]] --exclude foo004 foo006
 $ ./geninst foo[[000-010]] --secret-file /path/to/secret.file
 ||<
 
+** Suite を指定する
+
+Suite とはここでは Debian のコードネーム(lenny, squeeze, unstable など)を指します. Lucie が Debian のパッケージをインストールする際, どのパッケージレポジトリからインストールするかを, ここで選択することができます. 2011年現在, Lucie は lenny でしか動作が確認されていません.
+
+>|bash|
+$ ./geninst foo[[000-010]] --suite lenny
+||<
+
 ** パーティショニング前に break しない
 
 Lucie は node install-multi コマンドに --break オプションを渡すと Disk Partition の直前で一旦シェルに落ち, パーティショニング時にディスクがどのように認識されているかを確認することができます. 本スクリプトでは安全のため<span style="font-weight:bold;">1ノードのインストール時のみ</span>, この --break オプションをデフォルトで付加する仕様としています. 無効にしたスクリプトを生成したい場合には --nobreak オプションを指定してください.

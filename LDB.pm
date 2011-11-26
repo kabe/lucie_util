@@ -102,7 +102,7 @@ installation, and B<netmask> for installation.
 
 Whole command line template of Lucie. C<${LINE_TMPLS}> will be
 replaced with Node templates that have been replaced, each of which is
-quoted as B<"Node template" \E<lt>CRE<gt>>
+quoted as B<"Node template" \E<lt>CR\E<gt>>
 
 C<BREAK_FLAG> is set only when executed for just one node and
 B<--nobreak> optios not specified.
@@ -143,6 +143,7 @@ ${LINE_TMPLS}
 --linux-image ${LINUX_KERNEL} \
 --architecture ${ARCHITECTURE} \
 ${BREAK_FLAG} \
+${SUITE_FLAG} \
 ${APPEND_CMD} \
 --secret ${SECRET_FILE}
 END
@@ -313,6 +314,8 @@ sub configure($\%) {
   }
   # PXE file usage in DHCP
   $self->{pxe_config} = $href->{"use-pxefile"} ? $dhcp_pxe_config : "";
+  # Suite string
+  $self->{suite} = $href->{suite} || "";
   # Append string
   $self->{append} = $href->{"append"} || "";
   #print Data::Dumper->Dump([$href]) if $self->isDebug;
@@ -374,6 +377,7 @@ sub generate($) {
   $tp->{REMOTE_LDB_REPOSITORY_TYPE} = $self->{remote_ldb_type};
   $tp->{REMOTE_LDB_REPOSITORY_LOCATION} = $self->{remote_ldb_location};
   $tp->{BREAK_FLAG} = $self->{break} ? q|--break| : q||;
+  $tp->{SUITE_FLAG} = $self->{suite} ? qq|--suite | . $self->{suite} : q||;
   $tp->{ARCHITECTURE} = $self->architecture($self->{consistent}->{arch});
   $tp->{LINUX_KERNEL} = $self->install_kernel($self->{consistent}->{arch});
   $tp->{APPEND_CMD} = $self->{append};
